@@ -5,8 +5,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* vendor/ is git-ignored, so Tailwind's automatic source detection skips it;
+   the paginator's Blade views have to be registered explicitly. Compiled
+   Blade views under storage/framework/views are deliberately NOT a source:
+   scanning them makes the produced CSS depend on whichever pages happened to
+   be rendered before the build. The portal's only Blade file,
+   resources/views/app.blade.php, is picked up automatically. */
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
 
 @theme inline {
     --font-heading: var(--font-sans);

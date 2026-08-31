@@ -38,9 +38,23 @@ COPY docker/php/www.conf /usr/local/etc/php-fpm.d/zz-portal.conf
 
 # Run as a non-root user whose ids match the host developer account so
 # bind-mounted files keep usable ownership.
+#
+# The home directory deliberately sits outside WORKDIR: with home set to
+# /var/www/html, tools that write dotfiles (psysh under `artisan tinker`,
+# Composer, npm) dropped runtime state such as .config/psysh/psysh_history
+# straight into the bind-mounted working copy.
 RUN addgroup -g ${GID} -S portal \
-    && adduser -u ${UID} -G portal -S -h /var/www/html portal \
-    && chown -R portal:portal /var/www/html
+    && adduser -u ${UID} -G portal -S -h /home/portal portal \
+    && mkdir -p /home/portal /var/www/html \
+    && chown -R portal:portal /home/portal /var/www/html
+
+# runc derives HOME from /etc/passwd, but declare it explicitly so the value
+# does not depend on the runtime, and keep tool caches under it as well.
+ENV HOME=/home/portal \
+    COMPOSER_HOME=/home/portal/.composer \
+    XDG_CONFIG_HOME=/home/portal/.config \
+    XDG_CACHE_HOME=/home/portal/.cache \
+    XDG_DATA_HOME=/home/portal/.local/share
 
 WORKDIR /var/www/html
 USER portal

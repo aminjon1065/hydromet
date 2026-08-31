@@ -27,3 +27,12 @@ Homestead.yaml
 Thumbs.db
 /.phpstan
 /docker/**/*.local.conf
+
+# Runtime state written by tools that treat the working copy as a home
+# directory (psysh, composer, npm) instead of the container user's home.
+/.config
+/.cache
+/.composer
+/.local
+/.npm
+/.bash_history

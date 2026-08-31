@@ -1,0 +1,12 @@
+# Prettier only formats the frontend source. Documentation, PHP (Pint),
+# lock files and vendor output are managed elsewhere.
+bootstrap/
+docs/
+node_modules/
+public/
+storage/
+vendor/
+*.md
+composer.json
+composer.lock
+package-lock.json

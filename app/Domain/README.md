@@ -25,7 +25,7 @@ MeteoAlert). Ordinary local Eloquent access does not get a repository interface.
 | `Identity` | Phase 1: users, roles, panel access |
 | `Stations` | Phase 2A: station registry, parameter catalogue, registry import |
 | `Measurements` | Phase 2B: canonical observations, source revision history, measurement import |
-| `Integrations` | Phase 2A/2B: `StationRegistryProvider` and `MeasurementProvider` contracts with fixture adapters |
+| `Integrations` | Phase 2A/2B: `StationRegistryProvider` and `MeasurementProvider` contracts with fixture adapters. Phase 2C: source configuration and the synchronization run journal |
 
 The remaining directories are placeholders so that later phases add code in the
 agreed location.
@@ -75,3 +75,48 @@ of its own, so validation and persistence rules live in one place.
 `source` + `station_external_id` and a parameter by canonical code, and to check
 the declared unit against `Parameter.canonical_unit`. It reads those models and
 never writes them.
+
+## Synchronization journal
+
+Every import attempt is recorded, docs/03-data-contracts.md section 8.
+
+```text
+IntegrationSource              how to reach a provider; never a credential
+      |
+      v
+SynchronizationRunner.run()    opens the run as `running`, then invokes the work
+      |                        succeeded | partial | failed
+      v
+synchronization_runs           counters, status, safe error
+synchronization_rejected_rows  one row per quarantined row, already sanitized
+```
+
+The runner is the only writer of those two tables and knows nothing about what
+it is importing: callers pass a closure that performs the import and returns a
+`SynchronizationOutcome`, so a new import kind needs no change to it.
+
+Two properties it deliberately keeps:
+
+- the run is committed as `running` **before** a provider is touched, so a
+  process that dies mid-read still leaves a trace;
+- the import is **not** wrapped in a transaction. Stations and measurements are
+  the system of record and each row is written on its own, so a later failure
+  never rolls back rows that were already accepted
+  (docs/02-architecture.md, section 7).
+
+An unexpected exception is never written down. It is not passed to `report()`
+and not passed to the logger: a provider failure message routinely carries a DSN
+with its password, an `Authorization` header, a slice of the raw payload or an
+absolute path describing the deployment.
+
+What is recorded instead:
+
+| Where | What |
+| --- | --- |
+| `synchronization_runs` | stable `error_code`, fixed safe `sanitized_error` |
+| application log | run id, source code, kind, exception class name |
+| console | the same safe sentence, plus the run id |
+
+The trade-off is deliberate and visible: the log says which run failed and how
+it failed in type terms, not why. Neither the console nor `sanitized_error`
+promises details that are not there.

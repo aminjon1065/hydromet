@@ -2,8 +2,12 @@
 
 namespace Tests\Feature\Measurements;
 
+use App\Domain\Integrations\Enums\SynchronizationKind;
+use App\Domain\Integrations\Enums\SynchronizationStatus;
 use App\Domain\Integrations\Fixtures\FixtureMeasurementProvider;
 use App\Domain\Integrations\Fixtures\FixtureStationRegistryProvider;
+use App\Domain\Integrations\Models\SynchronizationRejectedRow;
+use App\Domain\Integrations\Models\SynchronizationRun;
 use App\Domain\Measurements\Models\Measurement;
 use App\Domain\Measurements\Models\MeasurementRevision;
 use App\Domain\Stations\Services\StationRegistryImporter;
@@ -11,12 +15,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Exceptions;
 use PHPUnit\Framework\Attributes\Test;
-use RuntimeException;
+use Tests\Support\CapturesLogs;
 use Tests\TestCase;
 
 class ImportFixtureMeasurementsCommandTest extends TestCase
 {
-    use RefreshDatabase;
+    use CapturesLogs, RefreshDatabase;
 
     private const COMMAND = 'measurements:import-fixture-batch';
 
@@ -146,12 +150,14 @@ class ImportFixtureMeasurementsCommandTest extends TestCase
     }
 
     #[Test]
-    public function an_unexpected_failure_is_logged_and_reported_without_the_exception_message(): void
+    public function an_unexpected_failure_reaches_neither_the_console_nor_the_log(): void
     {
+        $this->captureLogs();
         Exceptions::fake();
 
         // A real failure mode rather than a stubbed one: the provider is
-        // pointed at a fixture path that does not exist.
+        // pointed at a fixture path that does not exist, so the exception
+        // message carries that path.
         $this->app->bind(
             FixtureMeasurementProvider::class,
             fn ($app, array $parameters): FixtureMeasurementProvider => new FixtureMeasurementProvider(
@@ -164,11 +170,19 @@ class ImportFixtureMeasurementsCommandTest extends TestCase
         $errorLine = $this->errorLine(Artisan::output());
 
         $this->assertSame(1, $exitCode);
-        Exceptions::assertReported(RuntimeException::class);
 
-        // The exception itself reaches the log, never the console. Asserted on
-        // the failure line alone: the banner above it deliberately names the
-        // configured origin, which is operator-facing by design.
+        // The exception is neither handed to the framework reporter nor
+        // written to the log; only safe structured fields are.
+        Exceptions::assertNothingReported();
+
+        $logged = $this->loggedText();
+        $this->assertStringContainsString('Synchronization run failed.', $logged);
+        $this->assertStringNotContainsString('missing or unreadable', $logged);
+        $this->assertStringNotContainsString('no-such-measurement-fixture', $logged);
+        $this->assertStringNotContainsString(base_path(), $logged);
+
+        // Asserted on the failure line alone: the banner above it deliberately
+        // names the configured origin, which is operator-facing by design.
         $this->assertStringNotContainsString('missing or unreadable', $errorLine);
         $this->assertStringNotContainsString('no-such-measurement-fixture', $errorLine);
         $this->assertStringNotContainsString('.json', $errorLine);
@@ -181,6 +195,83 @@ class ImportFixtureMeasurementsCommandTest extends TestCase
         $this->assertStringContainsString('may already be stored', $errorLine);
         $this->assertStringContainsString('idempotent', $errorLine);
         $this->assertStringNotContainsString('nothing was stored', $errorLine);
+    }
+
+    #[Test]
+    public function each_invocation_is_journalled_as_its_own_synchronization_run(): void
+    {
+        Artisan::call(self::COMMAND, ['--scenario' => 'base']);
+        Artisan::output();
+        Artisan::call(self::COMMAND, ['--scenario' => 'base']);
+        Artisan::output();
+        Artisan::call(self::COMMAND, ['--scenario' => 'correction']);
+        Artisan::output();
+
+        $runs = SynchronizationRun::query()->orderBy('id')->get();
+
+        $this->assertCount(3, $runs);
+
+        foreach ($runs as $run) {
+            $this->assertSame(SynchronizationKind::Measurements, $run->kind);
+            $this->assertSame('fixture', $run->source->code);
+            $this->assertNotNull($run->finished_at);
+        }
+
+        [$firstBase, $repeatedBase, $correction] = $runs->all();
+
+        // Both base runs quarantined the same broken row; the correction batch
+        // has none.
+        $this->assertSame(SynchronizationStatus::Partial, $firstBase->status);
+        $this->assertSame(SynchronizationStatus::Partial, $repeatedBase->status);
+        $this->assertSame(SynchronizationStatus::Succeeded, $correction->status);
+
+        $this->assertSame(8, $firstBase->received_count);
+        $this->assertSame(7, $firstBase->accepted_count);
+        $this->assertSame(1, $firstBase->rejected_count);
+
+        // The repeat found everything already stored.
+        $this->assertSame(0, $repeatedBase->updated_count);
+        // The correction applied exactly one change.
+        $this->assertSame(1, $correction->updated_count);
+
+        $this->assertSame(2, SynchronizationRejectedRow::query()->count());
+        $this->assertSame(7, Measurement::query()->count());
+        $this->assertSame(1, MeasurementRevision::query()->count());
+    }
+
+    #[Test]
+    public function the_console_names_the_run_it_recorded(): void
+    {
+        Artisan::call(self::COMMAND, ['--scenario' => 'base']);
+        $output = Artisan::output();
+
+        $run = SynchronizationRun::query()->sole();
+
+        $this->assertStringContainsString('synchronization run #'.$run->id, $output);
+        $this->assertStringContainsString('status "partial"', $output);
+    }
+
+    #[Test]
+    public function a_failed_run_is_journalled_with_a_safe_error(): void
+    {
+        $this->app->bind(
+            FixtureMeasurementProvider::class,
+            fn ($app, array $parameters): FixtureMeasurementProvider => new FixtureMeasurementProvider(
+                $parameters['scenario'],
+                base_path('storage/framework/testing/no-such-measurement-fixture.json'),
+            ),
+        );
+
+        $this->assertSame(1, Artisan::call(self::COMMAND, ['--scenario' => 'base']));
+        Artisan::output();
+
+        $run = SynchronizationRun::query()->sole();
+
+        $this->assertSame(SynchronizationStatus::Failed, $run->status);
+        $this->assertSame(SynchronizationRun::ERROR_UNEXPECTED, $run->error_code);
+        $this->assertNotNull($run->finished_at);
+        $this->assertStringNotContainsString('.json', (string) $run->sanitized_error);
+        $this->assertStringNotContainsString('unreadable', (string) $run->sanitized_error);
     }
 
     /**

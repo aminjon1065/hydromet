@@ -57,8 +57,14 @@ Phase 2B adds the `measurements` and `measurement_revisions` tables, the
 canonical measurement record, the `MeasurementProvider` boundary with fixture
 adapters for a base batch and a correction batch, and an idempotent import
 service that applies source revisions while preserving the originally supplied
-value. AQI, SmartMet, MeteoAlert, SILAM, manual correction, incremental
-scheduling, the public map, charts and the public API are not implemented yet.
+value.
+
+Phase 2C adds the `integration_sources`, `synchronization_runs` and
+`synchronization_rejected_rows` tables and the `SynchronizationRunner` that
+journals every import attempt. Both fixture commands now run through it, so each
+invocation leaves a run with its status, counters and quarantined rows. AQI,
+SmartMet, MeteoAlert, SILAM, manual correction, incremental scheduling, retries,
+the public map, charts and the public API are not implemented yet.
 
 ### Selected versions
 
@@ -217,6 +223,39 @@ writes no further history. The originally supplied value and quality are never
 rewritten, so replaying `base` afterwards is rejected as a stale revision rather
 than undoing the correction. `--scenario` is required and accepts only `base` or
 `correction`, and the command refuses to run in `production`.
+
+### Synchronization journal
+
+Both fixture commands run through `SynchronizationRunner`, so every invocation
+is recorded in `synchronization_runs` (docs/03-data-contracts.md, section 8).
+The `fixture` row in `integration_sources` is created on first use; no seeding
+step is needed.
+
+```bash
+docker compose exec postgres psql -U hydromet -d hydromet -c \
+  "SELECT id, kind, status, received_count, accepted_count, updated_count, rejected_count
+   FROM synchronization_runs ORDER BY id"
+
+docker compose exec postgres psql -U hydromet -d hydromet -c \
+  "SELECT synchronization_run_id, reference, reason_code, safe_detail
+   FROM synchronization_rejected_rows ORDER BY id"
+```
+
+A run is `succeeded` when nothing was quarantined, `partial` when it finished
+with rejected rows, and `failed` when it stopped on an unexpected error. Running
+a command twice creates two runs and changes no data — the second one reports
+everything as already stored.
+
+Nothing in the journal is a secret. `integration_sources` has no credential
+column at all: it records *how* a source authenticates, while the key itself
+lives in server-side secrets, and a stored `base_url` may carry neither a query
+string nor `user:pass@` userinfo. A failed run keeps a stable `error_code` and a
+fixed safe sentence, and the log records only the run id, the source code, the
+kind and the exception's class name. The exception itself — its message and
+trace — is deliberately never written anywhere, because a provider failure
+message routinely carries a DSN, an `Authorization` header or a slice of the
+raw payload. Reproducing a cause means re-running the import with the
+provider's own diagnostics.
 
 ### Test
 

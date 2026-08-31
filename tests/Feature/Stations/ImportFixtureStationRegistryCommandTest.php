@@ -2,20 +2,26 @@
 
 namespace Tests\Feature\Stations;
 
+use App\Domain\Integrations\Enums\SynchronizationKind;
+use App\Domain\Integrations\Enums\SynchronizationStatus;
 use App\Domain\Integrations\Fixtures\FixtureStationRegistryProvider;
+use App\Domain\Integrations\Models\IntegrationSource;
+use App\Domain\Integrations\Models\SynchronizationRejectedRow;
+use App\Domain\Integrations\Models\SynchronizationRun;
 use App\Domain\Stations\Models\Parameter;
 use App\Domain\Stations\Models\Station;
+use App\Support\Canonical\RejectionReason;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use PHPUnit\Framework\Attributes\Test;
-use RuntimeException;
+use Tests\Support\CapturesLogs;
 use Tests\TestCase;
 
 class ImportFixtureStationRegistryCommandTest extends TestCase
 {
-    use RefreshDatabase;
+    use CapturesLogs, RefreshDatabase;
 
     private const COMMAND = 'stations:import-fixture-registry';
 
@@ -97,12 +103,14 @@ class ImportFixtureStationRegistryCommandTest extends TestCase
     }
 
     #[Test]
-    public function an_unexpected_failure_is_logged_and_reported_without_the_exception_message(): void
+    public function an_unexpected_failure_reaches_neither_the_console_nor_the_log(): void
     {
+        $this->captureLogs();
         Exceptions::fake();
 
         // A real failure mode rather than a stubbed one: the provider is
-        // pointed at a fixture path that does not exist.
+        // pointed at a fixture path that does not exist, so the exception
+        // message carries that path.
         $this->app->bind(
             FixtureStationRegistryProvider::class,
             fn (): FixtureStationRegistryProvider => new FixtureStationRegistryProvider(
@@ -115,11 +123,18 @@ class ImportFixtureStationRegistryCommandTest extends TestCase
 
         $this->assertSame(1, $exitCode);
 
-        // The exception itself reaches the log, never the console. Asserted on
-        // the failure line alone: the banner above it deliberately names the
-        // configured origin, which is operator-facing by design.
-        Exceptions::assertReported(RuntimeException::class);
+        // The exception is neither handed to the framework reporter nor
+        // written to the log; only safe structured fields are.
+        Exceptions::assertNothingReported();
 
+        $logged = $this->loggedText();
+        $this->assertStringContainsString('Synchronization run failed.', $logged);
+        $this->assertStringNotContainsString('missing or unreadable', $logged);
+        $this->assertStringNotContainsString('no-such-fixture', $logged);
+        $this->assertStringNotContainsString(base_path(), $logged);
+
+        // Asserted on the failure line alone: the banner above it deliberately
+        // names the configured origin, which is operator-facing by design.
         $errorLine = $this->errorLine($output);
         $this->assertStringNotContainsString('missing or unreadable', $errorLine);
         $this->assertStringNotContainsString('no-such-fixture', $errorLine);
@@ -136,8 +151,6 @@ class ImportFixtureStationRegistryCommandTest extends TestCase
     #[Test]
     public function the_failure_message_does_not_claim_that_nothing_was_stored(): void
     {
-        Exceptions::fake();
-
         $this->app->bind(
             FixtureStationRegistryProvider::class,
             fn (): FixtureStationRegistryProvider => new FixtureStationRegistryProvider(
@@ -152,6 +165,87 @@ class ImportFixtureStationRegistryCommandTest extends TestCase
         // untouched would mislead an operator into skipping a re-run.
         $this->assertStringNotContainsString('nothing was stored', $errorLine);
         $this->assertStringNotContainsString('nothing was saved', $errorLine);
+    }
+
+    #[Test]
+    public function each_invocation_is_journalled_as_its_own_synchronization_run(): void
+    {
+        Artisan::call(self::COMMAND);
+        Artisan::output();
+        Artisan::call(self::COMMAND);
+        Artisan::output();
+
+        $runs = SynchronizationRun::query()->orderBy('id')->get();
+
+        $this->assertCount(2, $runs);
+
+        foreach ($runs as $run) {
+            $this->assertSame(SynchronizationKind::StationRegistry, $run->kind);
+            $this->assertSame('fixture', $run->source->code);
+            $this->assertSame(SynchronizationStatus::Partial, $run->status);
+            $this->assertNotNull($run->finished_at);
+            // 5 catalogue rows plus 4 station rows, one of which is rejected.
+            $this->assertSame(9, $run->received_count);
+            $this->assertSame(8, $run->accepted_count);
+            $this->assertSame(1, $run->rejected_count);
+        }
+
+        $this->assertSame(2, SynchronizationRejectedRow::query()->count());
+        $this->assertSame(3, Station::query()->count());
+        $this->assertSame(5, Parameter::query()->count());
+
+        // Only one source row, however many times the command runs.
+        $this->assertSame(1, IntegrationSource::query()->count());
+    }
+
+    #[Test]
+    public function the_journal_keeps_the_safe_rejection_detail(): void
+    {
+        Artisan::call(self::COMMAND);
+        Artisan::output();
+
+        $rejected = SynchronizationRejectedRow::query()->sole();
+
+        $this->assertSame(RejectionReason::LatitudeOutOfRange, $rejected->reason_code);
+        $this->assertSame('fixture:fixture-station-004', $rejected->reference);
+        $this->assertStringContainsString('outside -90..90', $rejected->safe_detail);
+        $this->assertStringNotContainsString('.php', $rejected->safe_detail);
+        $this->assertDoesNotMatchRegularExpression('/\R/', $rejected->safe_detail);
+    }
+
+    #[Test]
+    public function the_console_names_the_run_it_recorded(): void
+    {
+        Artisan::call(self::COMMAND);
+        $output = Artisan::output();
+
+        $run = SynchronizationRun::query()->sole();
+
+        $this->assertStringContainsString('synchronization run #'.$run->id, $output);
+        $this->assertStringContainsString('status "partial"', $output);
+    }
+
+    #[Test]
+    public function a_failed_run_is_journalled_with_a_safe_error(): void
+    {
+        $this->app->bind(
+            FixtureStationRegistryProvider::class,
+            fn (): FixtureStationRegistryProvider => new FixtureStationRegistryProvider(
+                base_path('storage/framework/testing/no-such-fixture.json'),
+            ),
+        );
+
+        $this->assertSame(1, Artisan::call(self::COMMAND));
+        Artisan::output();
+
+        $run = SynchronizationRun::query()->sole();
+
+        $this->assertSame(SynchronizationStatus::Failed, $run->status);
+        $this->assertSame(SynchronizationRun::ERROR_UNEXPECTED, $run->error_code);
+        $this->assertNotNull($run->finished_at);
+        $this->assertStringNotContainsString('.json', (string) $run->sanitized_error);
+        $this->assertStringNotContainsString('unreadable', (string) $run->sanitized_error);
+        $this->assertSame(0, SynchronizationRejectedRow::query()->count());
     }
 
     /**

@@ -2,12 +2,17 @@
 
 namespace App\Console\Commands;
 
+use App\Domain\Integrations\Data\SynchronizationOutcome;
+use App\Domain\Integrations\Enums\SynchronizationKind;
+use App\Domain\Integrations\Enums\SynchronizationStatus;
+use App\Domain\Integrations\Fixtures\FixtureIntegrationSource;
 use App\Domain\Integrations\Fixtures\FixtureMeasurementProvider;
 use App\Domain\Integrations\Fixtures\FixtureMeasurementScenario;
+use App\Domain\Integrations\Models\SynchronizationRun;
+use App\Domain\Integrations\Services\SynchronizationRunner;
 use App\Domain\Measurements\Data\MeasurementImportResult;
 use App\Domain\Measurements\Services\MeasurementImporter;
 use Illuminate\Console\Command;
-use Throwable;
 
 /**
  * Loads one built-in synthetic measurement batch.
@@ -28,7 +33,7 @@ class ImportFixtureMeasurements extends Command
 
     protected $description = 'Import a built-in MOCK measurement batch (development and test data only, not Hydromet data)';
 
-    public function handle(MeasurementImporter $importer): int
+    public function handle(SynchronizationRunner $runner, MeasurementImporter $importer): int
     {
         if ($this->getLaravel()->environment('production')) {
             $this->components->error('This command loads invented fixture data and is blocked in production.');
@@ -51,26 +56,40 @@ class ImportFixtureMeasurements extends Command
             'Importing MOCK data. Source key: "'.$provider->sourceKey().'". Origin: '.$provider->describeOrigin().'.'
         );
 
-        try {
-            $result = $importer->import($provider);
-        } catch (Throwable $exception) {
-            // An unexpected exception can carry driver output, file paths or
-            // configuration details, so it goes to the log and never to the
-            // console.
-            report($exception);
+        $result = null;
 
-            $this->components->error(
-                'The fixture import stopped on an unexpected error. Rows are written one at a '
-                .'time, so part of the batch may already be stored. The import is idempotent: '
-                .'once the cause is fixed, run it again to finish. Details are in the application log.'
-            );
+        $run = $runner->run(
+            FixtureIntegrationSource::ensure(),
+            SynchronizationKind::Measurements,
+            function () use ($importer, $provider, &$result): SynchronizationOutcome {
+                $result = $importer->import($provider);
+
+                return SynchronizationOutcome::fromMeasurements($result);
+            },
+        );
+
+        // No result means the closure threw; the runner has already journalled
+        // the failure and sent the exception to the log.
+        if ($result === null || $run->status === SynchronizationStatus::Failed) {
+            $this->renderFailure($run);
 
             return self::FAILURE;
         }
 
-        $this->renderResult($scenario, $result);
+        $this->renderResult($scenario, $result, $run);
 
         return self::SUCCESS;
+    }
+
+    private function renderFailure(SynchronizationRun $run): void
+    {
+        $this->components->error(
+            'The fixture import stopped on an unexpected error. Rows are written one at a '
+            .'time, so part of the batch may already be stored. The import is idempotent: '
+            .'once the cause is fixed, run it again to finish. Details are in the application log.'
+        );
+
+        $this->components->info('Recorded as synchronization run #'.$run->id.' with status "'.$run->status->value.'".');
     }
 
     /**
@@ -99,8 +118,11 @@ class ImportFixtureMeasurements extends Command
         return $scenario;
     }
 
-    private function renderResult(FixtureMeasurementScenario $scenario, MeasurementImportResult $result): void
-    {
+    private function renderResult(
+        FixtureMeasurementScenario $scenario,
+        MeasurementImportResult $result,
+        SynchronizationRun $run,
+    ): void {
         $counters = $result->counters();
 
         $this->newLine();
@@ -116,6 +138,10 @@ class ImportFixtureMeasurements extends Command
                 (string) $counters['rejected'],
                 (string) $counters['revisions_created'],
             ]],
+        );
+
+        $this->components->info(
+            'Recorded as synchronization run #'.$run->id.' with status "'.$run->status->value.'".'
         );
 
         if (! $result->isPartial()) {

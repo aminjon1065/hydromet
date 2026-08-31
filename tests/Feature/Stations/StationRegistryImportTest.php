@@ -3,11 +3,11 @@
 namespace Tests\Feature\Stations;
 
 use App\Domain\Integrations\Fixtures\FixtureStationRegistryProvider;
-use App\Domain\Stations\Enums\RejectionReason;
 use App\Domain\Stations\Enums\StationStatus;
 use App\Domain\Stations\Models\Parameter;
 use App\Domain\Stations\Models\Station;
 use App\Domain\Stations\Services\StationRegistryImporter;
+use App\Support\Canonical\RejectionReason;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;

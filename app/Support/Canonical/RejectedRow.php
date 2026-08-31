@@ -1,8 +1,6 @@
 <?php
 
-namespace App\Domain\Stations\Data;
-
-use App\Domain\Stations\Enums\RejectionReason;
+namespace App\Support\Canonical;
 
 /**
  * A single row the portal refused to import.

@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Domain\Stations\Data;
+namespace App\Support\Canonical;
 
-use App\Domain\Stations\Enums\RejectionReason;
-use App\Domain\Stations\Exceptions\InvalidCanonicalRow;
 use BackedEnum;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -16,11 +14,22 @@ use Throwable;
  * Adapters produce arrays shaped like docs/03-data-contracts.md; this reader is
  * the only place that turns those loose values into typed PHP. It answers the
  * structural question "is this row readable at all", not the domain question
- * "is this row acceptable" — range and catalogue rules belong to the import
- * service.
+ * "is this row acceptable" — range, catalogue and revision rules belong to each
+ * capability's import service.
+ *
+ * It lives in Support rather than in a capability because more than one import
+ * reads the same canonical conventions. It carries no business rules, so
+ * sharing it does not couple Stations and Measurements to each other.
  */
 final readonly class CanonicalReader
 {
+    /**
+     * Fractional second digits the portal can carry without loss: PHP's
+     * DateTime holds microseconds, and the timestamp columns are declared
+     * `timestamp(6)` to match.
+     */
+    public const MAX_FRACTIONAL_DIGITS = 6;
+
     /**
      * @param  array<array-key, mixed>  $row
      */
@@ -73,6 +82,26 @@ final readonly class CanonicalReader
         }
 
         return $this->float($key);
+    }
+
+    /**
+     * A number the provider must state, and may state as `null`.
+     *
+     * Distinct from {@see nullableFloat()}: there, a missing key and an explicit
+     * `null` mean the same thing. Here the key carries meaning — `null` is how
+     * the contract says "no reading" — so omitting it is a malformed row rather
+     * than a missing observation.
+     */
+    public function requiredNullableFloat(string $key): ?float
+    {
+        if (! array_key_exists($key, $this->row)) {
+            throw new InvalidCanonicalRow(
+                RejectionReason::MalformedRow,
+                "Required field '{$key}' is missing.",
+            );
+        }
+
+        return $this->nullableFloat($key);
     }
 
     public function integer(string $key): int
@@ -176,7 +205,13 @@ final readonly class CanonicalReader
      * time instead of a rejected row.
      *
      * Accepted: `2026-08-31T06:00:00Z`, `2026-08-31T06:00:00.123Z`,
-     * `2026-08-31T11:00:00+05:00`.
+     * `2026-08-31T06:00:00.123456Z`, `2026-08-31T11:00:00+05:00`.
+     *
+     * Fractional seconds are kept, up to the six digits PHP's DateTime and the
+     * `timestamp(6)` columns can both represent. A seventh digit is refused
+     * rather than truncated: silently dropping precision would turn two
+     * distinct observations into one, and the portal would have no way to tell
+     * an operator that it had done so.
      */
     public function dateTime(string $key): Carbon
     {
@@ -192,6 +227,18 @@ final readonly class CanonicalReader
             throw $this->typeError(
                 $key,
                 "an ISO 8601 timestamp with 'Z' or an explicit offset, such as 2026-08-31T06:00:00Z",
+            );
+        }
+
+        // Matched with up to nine digits so this case can be named precisely
+        // instead of arriving as a generic shape mismatch.
+        $fractionDigits = $parts[7] === '' ? 0 : strlen($parts[7]) - 1;
+
+        if ($fractionDigits > self::MAX_FRACTIONAL_DIGITS) {
+            throw new InvalidCanonicalRow(
+                RejectionReason::UnsupportedTimestampPrecision,
+                "Field '{$key}' states {$fractionDigits} fractional second digits; the portal stores at most "
+                    .self::MAX_FRACTIONAL_DIGITS.' and will not silently drop the rest.',
             );
         }
 
@@ -214,6 +261,21 @@ final readonly class CanonicalReader
         } catch (Throwable) {
             throw $this->typeError($key, 'an ISO 8601 timestamp');
         }
+    }
+
+    /**
+     * Optional timestamp, read under exactly the rules of {@see dateTime()}.
+     *
+     * A field the provider did not supply is absent, which is not the same as a
+     * field it supplied badly: the first returns null, the second is rejected.
+     */
+    public function nullableDateTime(string $key): ?Carbon
+    {
+        if (! $this->filled($key)) {
+            return null;
+        }
+
+        return $this->dateTime($key);
     }
 
     /**

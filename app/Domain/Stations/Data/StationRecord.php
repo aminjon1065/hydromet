@@ -4,7 +4,8 @@ namespace App\Domain\Stations\Data;
 
 use App\Domain\Stations\Enums\StationStatus;
 use App\Domain\Stations\Enums\StationType;
-use App\Domain\Stations\Exceptions\InvalidCanonicalRow;
+use App\Support\Canonical\CanonicalReader;
+use App\Support\Canonical\InvalidCanonicalRow;
 use Illuminate\Support\Carbon;
 
 /**

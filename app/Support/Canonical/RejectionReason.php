@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Domain\Stations\Enums;
+namespace App\Support\Canonical;
 
 /**
  * Stable reason codes for rows the portal refused to import.
@@ -8,6 +8,9 @@ namespace App\Domain\Stations\Enums;
  * The codes are part of the operator-facing contract: they are logged, shown in
  * import output and will later be stored with rejected rows. They never carry
  * provider payloads, credentials or stack traces.
+ *
+ * One vocabulary is shared by every import so an operator reads the same code
+ * for the same kind of problem, wherever it was found.
  */
 enum RejectionReason: string
 {
@@ -41,4 +44,31 @@ enum RejectionReason: string
 
     /** The row lost a uniqueness race or violated a database constraint. */
     case PersistenceConflict = 'persistence_conflict';
+
+    /** The measurement names a station that is not in the registry. */
+    case UnknownStation = 'unknown_station';
+
+    /** The measurement's unit is not the parameter's canonical unit. */
+    case UnitMismatch = 'unit_mismatch';
+
+    /** The revision number is below the documented starting point of 1. */
+    case InvalidRevision = 'invalid_revision';
+
+    /** A revision older than the stored one; the stored row stays effective. */
+    case StaleRevision = 'stale_revision';
+
+    /** The stored revision number, restated with a different value or quality. */
+    case RevisionConflict = 'revision_conflict';
+
+    /** A timestamp carried more fractional digits than the portal can store. */
+    case UnsupportedTimestampPrecision = 'unsupported_timestamp_precision';
+
+    /** Quality `missing` was declared together with a value. */
+    case MissingRequiresNullValue = 'missing_requires_null_value';
+
+    /** No value was supplied, but the quality claims a reading was taken. */
+    case NullValueRequiresMissingQuality = 'null_value_requires_missing_quality';
+
+    /** A source batch claimed a manually entered reading. */
+    case ManualEntryNotSupported = 'manual_entry_not_supported';
 }

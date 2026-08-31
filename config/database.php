@@ -96,6 +96,14 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'search_path' => 'public',
+            /*
+             * Laravel writes timestamps as UTC wall-clock strings without an
+             * offset. A `timestamptz` column resolves such a string using the
+             * session time zone, so the session is pinned here instead of
+             * relying on the server default: otherwise a server configured for
+             * a local zone would silently shift every observation time.
+             */
+            'timezone' => env('DB_TIMEZONE', 'UTC'),
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 

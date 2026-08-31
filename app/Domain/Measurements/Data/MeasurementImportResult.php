@@ -1,20 +1,20 @@
 <?php
 
-namespace App\Domain\Stations\Data;
+namespace App\Domain\Measurements\Data;
 
 use App\Support\Canonical\RejectedRow;
 
 /**
- * Outcome of one import pass over one canonical collection.
+ * Outcome of one measurement import pass.
  *
- * Counters mirror docs/03-data-contracts.md section 8.2 so this object can be
- * persisted as a synchronization run without reshaping once that table exists.
- * `unchanged` is reported separately because it is the evidence that a repeated
- * import was idempotent.
+ * Counters follow docs/03-data-contracts.md section 8.2, plus two the station
+ * registry does not need: `unchanged`, which is the evidence that a repeated
+ * import was idempotent, and `revisionsCreated`, which is the evidence that a
+ * source correction was recorded rather than silently overwritten.
  *
  * received = accepted + rejected, and accepted = created + updated + unchanged.
  */
-final readonly class ImportResult
+final readonly class MeasurementImportResult
 {
     /**
      * @param  list<RejectedRow>  $rejections
@@ -24,15 +24,22 @@ final readonly class ImportResult
         public int $created,
         public int $updated,
         public int $unchanged,
+        public int $revisionsCreated,
         public array $rejections,
     ) {}
 
     /**
      * @param  list<RejectedRow>  $rejections
      */
-    public static function make(int $received, int $created, int $updated, int $unchanged, array $rejections): self
-    {
-        return new self($received, $created, $updated, $unchanged, $rejections);
+    public static function make(
+        int $received,
+        int $created,
+        int $updated,
+        int $unchanged,
+        int $revisionsCreated,
+        array $rejections,
+    ): self {
+        return new self($received, $created, $updated, $unchanged, $revisionsCreated, $rejections);
     }
 
     public function accepted(): int
@@ -51,7 +58,7 @@ final readonly class ImportResult
     }
 
     /**
-     * @return array{received: int, accepted: int, created: int, updated: int, unchanged: int, rejected: int}
+     * @return array{received: int, accepted: int, created: int, updated: int, unchanged: int, rejected: int, revisions_created: int}
      */
     public function counters(): array
     {
@@ -62,6 +69,7 @@ final readonly class ImportResult
             'updated' => $this->updated,
             'unchanged' => $this->unchanged,
             'rejected' => $this->rejected(),
+            'revisions_created' => $this->revisionsCreated,
         ];
     }
 }

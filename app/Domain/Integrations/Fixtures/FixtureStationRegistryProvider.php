@@ -5,10 +5,10 @@ namespace App\Domain\Integrations\Fixtures;
 use App\Domain\Integrations\Contracts\StationRegistryProvider;
 use App\Domain\Stations\Data\ParameterCatalogueBatch;
 use App\Domain\Stations\Data\ParameterRecord;
-use App\Domain\Stations\Data\RejectedRow;
 use App\Domain\Stations\Data\StationRecord;
 use App\Domain\Stations\Data\StationRegistryBatch;
-use App\Domain\Stations\Exceptions\InvalidCanonicalRow;
+use App\Support\Canonical\InvalidCanonicalRow;
+use App\Support\Canonical\RejectedRow;
 use JsonException;
 use RuntimeException;
 

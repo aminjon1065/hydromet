@@ -4,13 +4,13 @@ namespace Tests\Unit\Stations;
 
 use App\Domain\Integrations\Fixtures\FixtureStationRegistryProvider;
 use App\Domain\Stations\Data\ParameterRecord;
-use App\Domain\Stations\Data\RejectedRow;
 use App\Domain\Stations\Data\StationRecord;
 use App\Domain\Stations\Enums\ParameterKind;
-use App\Domain\Stations\Enums\RejectionReason;
 use App\Domain\Stations\Enums\StationStatus;
 use App\Domain\Stations\Enums\StationType;
-use App\Domain\Stations\Exceptions\InvalidCanonicalRow;
+use App\Support\Canonical\InvalidCanonicalRow;
+use App\Support\Canonical\RejectedRow;
+use App\Support\Canonical\RejectionReason;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CanonicalRows;

@@ -1,9 +1,7 @@
 <?php
 
-namespace App\Domain\Stations\Exceptions;
+namespace App\Support\Canonical;
 
-use App\Domain\Stations\Data\RejectedRow;
-use App\Domain\Stations\Enums\RejectionReason;
 use RuntimeException;
 
 /**

@@ -33,12 +33,13 @@ The current product decisions are:
 
 Phase 1 (application foundation) is complete.
 
-Phase 2A (station and parameter catalogue) is complete against a **mock**
-provider: the canonical schema, the station registry import service and a
-read-only administration view exist, fed by a checked-in development fixture.
-No Hydromet data has been received. The remaining data work starts once the
-decisions marked `BLOCKING` in the Hydromet input checklist are answered or
-explicitly replaced with documented mock contracts.
+Phase 2A (station and parameter catalogue) and Phase 2B (measurement storage and
+source revisions) are complete against **mock** providers: the canonical schema,
+both import services and a read-only administration view exist, fed by
+checked-in development fixtures. No Hydromet data has been received. The
+remaining data work starts once the decisions marked `BLOCKING` in the Hydromet
+input checklist are answered or explicitly replaced with documented mock
+contracts.
 
 ## Application
 
@@ -50,8 +51,14 @@ Phase 2A adds the `stations`, `parameters` and `station_parameter` tables, the
 canonical station/parameter records from `docs/03-data-contracts.md`, the
 `StationRegistryProvider` integration boundary with a fixture adapter, an
 idempotent registry import service and read-only `Station`/`Parameter` Filament
-resources. Measurements, AQI, SmartMet, MeteoAlert, SILAM, the public map and
-the public API are not implemented yet.
+resources.
+
+Phase 2B adds the `measurements` and `measurement_revisions` tables, the
+canonical measurement record, the `MeasurementProvider` boundary with fixture
+adapters for a base batch and a correction batch, and an idempotent import
+service that applies source revisions while preserving the originally supplied
+value. AQI, SmartMet, MeteoAlert, SILAM, manual correction, incremental
+scheduling, the public map, charts and the public API are not implemented yet.
 
 ### Selected versions
 
@@ -187,6 +194,29 @@ The command is idempotent: running it twice reports every row as `unchanged`
 and adds no rows. The fixture deliberately contains one broken row, so the
 output always ends with a partial result and one rejection; that is expected
 and does not make the command fail. It refuses to run in `production`.
+
+### Measurement fixtures
+
+Observations come from the same invented `fixture` source. The station registry
+fixture must be imported first, because a measurement is tied to a station by
+`source` + `station_external_id`.
+
+```bash
+docker compose exec app php artisan measurements:import-fixture-batch --scenario=base
+docker compose exec app php artisan measurements:import-fixture-batch --scenario=correction
+```
+
+`base` is a small historical batch containing one reading with no value
+(`quality: missing`), one row with no sensor number, and one deliberately broken
+row naming a station that does not exist. `correction` restates one of those
+observations at revision 2 with a different value and quality.
+
+Both scenarios are idempotent. The correction writes one `measurement_revisions`
+row holding the value before and after; re-running it reports `unchanged` and
+writes no further history. The originally supplied value and quality are never
+rewritten, so replaying `base` afterwards is rejected as a stale revision rather
+than undoing the correction. `--scenario` is required and accepts only `base` or
+`correction`, and the command refuses to run in `production`.
 
 ### Test
 

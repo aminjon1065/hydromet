@@ -2,6 +2,8 @@
 
 namespace Tests\Support;
 
+use App\Domain\Measurements\Data\MeasurementBatch;
+use App\Domain\Measurements\Data\MeasurementRecord;
 use App\Domain\Stations\Data\ParameterCatalogueBatch;
 use App\Domain\Stations\Data\ParameterRecord;
 use App\Domain\Stations\Data\StationRecord;
@@ -91,6 +93,43 @@ final class CanonicalRows
         return new ParameterCatalogueBatch(
             self::SOURCE,
             array_map(static fn (array $row): ParameterRecord => ParameterRecord::fromCanonical($row), $rows),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    public static function measurement(array $overrides = []): array
+    {
+        return [
+            'source' => self::SOURCE,
+            'source_measurement_id' => null,
+            'station_external_id' => 'test-station-001',
+            'parameter_code' => 'PM25',
+            'sensor_no' => null,
+            'observed_at' => '2026-08-31T06:00:00Z',
+            'received_at' => '2026-08-31T06:02:00Z',
+            'value' => 23.4,
+            'unit' => 'ug/m3',
+            'averaging_period' => 'PT1H',
+            'quality' => 'valid',
+            'quality_flags' => [],
+            'revision' => 1,
+            'is_manual' => false,
+            'source_updated_at' => '2026-08-31T06:02:00Z',
+            ...$overrides,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     */
+    public static function measurementBatch(array $rows): MeasurementBatch
+    {
+        return new MeasurementBatch(
+            self::SOURCE,
+            array_map(static fn (array $row): MeasurementRecord => MeasurementRecord::fromCanonical($row), $rows),
         );
     }
 }

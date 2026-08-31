@@ -3,7 +3,8 @@
 namespace App\Domain\Stations\Data;
 
 use App\Domain\Stations\Enums\ParameterKind;
-use App\Domain\Stations\Exceptions\InvalidCanonicalRow;
+use App\Support\Canonical\CanonicalReader;
+use App\Support\Canonical\InvalidCanonicalRow;
 
 /**
  * Canonical parameter catalogue entry, docs/03-data-contracts.md section 4.

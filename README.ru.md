@@ -64,8 +64,14 @@ PostgreSQL/PostGIS, Redis), health-эндпоинт и инструменты к
 fixture-адаптером, идемпотентный сервис импорта реестра и read-only ресурсы
 Filament. Реальные данные Гидромета не получены.
 
-Измерения, AQI, SmartMet, MeteoAlert, SILAM, публичная карта и публичный API
-ещё не реализованы.
+Фаза 2B (хранение измерений и правки источника) также выполнена на
+**mock-данных**: таблицы `measurements` и `measurement_revisions`, каноническая
+запись измерения, граница `MeasurementProvider` с fixture-адаптерами (базовый
+пакет и пакет коррекции) и идемпотентный сервис импорта, который применяет
+правки источника, сохраняя исходно переданное значение.
+
+AQI, SmartMet, MeteoAlert, SILAM, ручная коррекция, инкрементальное расписание,
+публичная карта, графики и публичный API ещё не реализованы.
 
 ## Разработка
 
@@ -83,6 +89,8 @@ docker compose exec app php artisan migrate       # миграции
 docker compose exec app php artisan make:filament-user   # первый администратор
 
 docker compose exec app php artisan stations:import-fixture-registry  # mock-реестр
+docker compose exec app php artisan measurements:import-fixture-batch --scenario=base
+docker compose exec app php artisan measurements:import-fixture-batch --scenario=correction
 
 docker compose exec app php artisan test          # backend-тесты (SQLite)
 npm test                                          # frontend-тесты
@@ -98,8 +106,16 @@ docker compose down                               # остановка
 Команда `stations:import-fixture-registry` загружает искусственный
 fixture-реестр под ключом источника `fixture`. Она идемпотентна, содержит одну
 намеренно некорректную строку (частичный результат — это ожидаемое поведение) и
-запрещена в окружении `production`. Ограничения `CHECK` и PostGIS проверяются
-только на PostgreSQL — см. [README.md](README.md#test).
+запрещена в окружении `production`.
+
+`measurements:import-fixture-batch --scenario=base|correction` загружает
+искусственные измерения того же источника; реестр станций должен быть
+импортирован первым. Обе сцены идемпотентны: `correction` создаёт одну запись
+в `measurement_revisions` и не меняет исходное значение. Опция `--scenario`
+обязательна.
+
+Ограничения `CHECK` и PostGIS проверяются только на PostgreSQL —
+см. [README.md](README.md#test).
 
 Языковые ключи приложения — `tj`, `ru`, `en`, запасной — `ru`. Внутренний ключ
 `tj` приводится к стандартному тегу `tg-TJ` только на внешних границах (HTML

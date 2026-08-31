@@ -2,6 +2,8 @@
 
 namespace App\Domain\Stations\Data;
 
+use App\Support\Canonical\RejectedRow;
+
 /**
  * One provider read of the parameter catalogue.
  *

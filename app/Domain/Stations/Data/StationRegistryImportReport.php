@@ -2,6 +2,8 @@
 
 namespace App\Domain\Stations\Data;
 
+use App\Support\Canonical\RejectedRow;
+
 /**
  * Combined outcome of one registry import: the catalogue pass and the station
  * pass. Held in memory only — `synchronization_runs` is a later phase

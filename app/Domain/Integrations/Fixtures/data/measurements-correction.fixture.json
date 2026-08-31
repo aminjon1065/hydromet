@@ -1,0 +1,25 @@
+{
+    "_notice": "SYNTHETIC DEVELOPMENT FIXTURE. Not Hydromet data. This batch restates one observation from measurements-base.fixture.json at a higher source revision, so the correction path can be exercised end to end. Never load this file into a production environment.",
+    "scenario": "correction",
+    "fixture_version": "2026-09-01.1",
+    "generated_at": "2026-09-01T08:00:00Z",
+    "measurements": [
+        {
+            "_why_here": "Revision 2 of the 06:00 PM25 reading at fixture-station-001. The natural key matches the base row exactly; only value, quality, flags and the revision metadata differ. The base row's original_value (23.4) and original_quality (valid) must survive unchanged.",
+            "source_measurement_id": "FIXTURE-001-PM25-20260831T060000Z",
+            "station_external_id": "fixture-station-001",
+            "parameter_code": "PM25",
+            "sensor_no": "1",
+            "observed_at": "2026-08-31T06:00:00Z",
+            "received_at": "2026-09-01T07:45:00Z",
+            "value": 25.9,
+            "unit": "ug/m3",
+            "averaging_period": "PT1H",
+            "quality": "corrected",
+            "quality_flags": ["fixture_synthetic", "fixture_source_revision"],
+            "revision": 2,
+            "is_manual": false,
+            "source_updated_at": "2026-09-01T07:45:00Z"
+        }
+    ]
+}

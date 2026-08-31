@@ -58,7 +58,14 @@ Filament, Docker Compose (Nginx, PHP-FPM, очередь, планировщик
 PostgreSQL/PostGIS, Redis), health-эндпоинт и инструменты контроля качества
 (Pint, PHPStan/Larastan, ESLint, TypeScript, PHPUnit, Vitest).
 
-Станции, измерения, AQI, SmartMet, MeteoAlert и SILAM ещё не реализованы.
+Фаза 2A (каталог станций и параметров) выполнена на **mock-данных**: таблицы
+`stations`, `parameters`, `station_parameter`, канонические записи из
+`docs/03-data-contracts.md`, граница интеграции `StationRegistryProvider` с
+fixture-адаптером, идемпотентный сервис импорта реестра и read-only ресурсы
+Filament. Реальные данные Гидромета не получены.
+
+Измерения, AQI, SmartMet, MeteoAlert, SILAM, публичная карта и публичный API
+ещё не реализованы.
 
 ## Разработка
 
@@ -75,7 +82,9 @@ docker compose up -d                              # запуск
 docker compose exec app php artisan migrate       # миграции
 docker compose exec app php artisan make:filament-user   # первый администратор
 
-docker compose exec app php artisan test          # backend-тесты
+docker compose exec app php artisan stations:import-fixture-registry  # mock-реестр
+
+docker compose exec app php artisan test          # backend-тесты (SQLite)
 npm test                                          # frontend-тесты
 composer check                                    # Pint + PHPStan + тесты
 npm run lint && npm run types:check               # ESLint + typecheck
@@ -85,6 +94,12 @@ docker compose down                               # остановка
 
 Портал доступен на `http://localhost:8080`, административная панель — на
 `http://localhost:8080/admin`.
+
+Команда `stations:import-fixture-registry` загружает искусственный
+fixture-реестр под ключом источника `fixture`. Она идемпотентна, содержит одну
+намеренно некорректную строку (частичный результат — это ожидаемое поведение) и
+запрещена в окружении `production`. Ограничения `CHECK` и PostGIS проверяются
+только на PostgreSQL — см. [README.md](README.md#test).
 
 Языковые ключи приложения — `tj`, `ru`, `en`, запасной — `ru`. Внутренний ключ
 `tj` приводится к стандартному тегу `tg-TJ` только на внешних границах (HTML

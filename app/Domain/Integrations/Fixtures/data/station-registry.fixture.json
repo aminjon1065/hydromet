@@ -1,0 +1,169 @@
+{
+    "_notice": "SYNTHETIC DEVELOPMENT FIXTURE. Not Hydromet data. Station codes, names, coordinates, region and district codes, owners and installation dates are invented for local development and automated tests. Parameter units, precision and plausibility bounds are placeholders pending the confirmations listed in docs/08-hydromet-input-checklist.md, sections 1 and 5. Never load this file into a production environment.",
+    "fixture_version": "2026-08-31.1",
+    "generated_at": "2026-08-31T06:00:00Z",
+    "parameter_catalogue": [
+        {
+            "code": "PM25",
+            "kind": "pollutant",
+            "name": {
+                "tj": "Зарраҳои муаллақи PM2,5 (fixture)",
+                "ru": "Взвешенные частицы PM2,5 (fixture)",
+                "en": "Particulate matter PM2.5 (fixture)"
+            },
+            "canonical_unit": "ug/m3",
+            "precision": 1,
+            "default_averaging_period": "PT1H",
+            "plausible_min": 0,
+            "plausible_max": 2000,
+            "active": true
+        },
+        {
+            "code": "PM10",
+            "kind": "pollutant",
+            "name": {
+                "tj": "Зарраҳои муаллақи PM10 (fixture)",
+                "ru": "Взвешенные частицы PM10 (fixture)",
+                "en": "Particulate matter PM10 (fixture)"
+            },
+            "canonical_unit": "ug/m3",
+            "precision": 1,
+            "default_averaging_period": "PT1H",
+            "plausible_min": 0,
+            "plausible_max": 3000,
+            "active": true
+        },
+        {
+            "code": "NO2",
+            "kind": "pollutant",
+            "name": {
+                "tj": "Диоксиди нитроген (fixture)",
+                "ru": "Диоксид азота (fixture)",
+                "en": "Nitrogen dioxide (fixture)"
+            },
+            "canonical_unit": "ug/m3",
+            "precision": 1,
+            "default_averaging_period": "PT1H",
+            "plausible_min": 0,
+            "plausible_max": null,
+            "active": true
+        },
+        {
+            "code": "TA",
+            "kind": "meteorological",
+            "name": {
+                "tj": "Ҳарорати ҳаво (fixture)",
+                "ru": "Температура воздуха (fixture)",
+                "en": "Air temperature (fixture)"
+            },
+            "canonical_unit": "degC",
+            "precision": 1,
+            "default_averaging_period": "PT1H",
+            "plausible_min": -60,
+            "plausible_max": 60,
+            "active": true
+        },
+        {
+            "code": "RH",
+            "kind": "meteorological",
+            "name": {
+                "tj": "Намии нисбӣ (fixture)",
+                "ru": "Относительная влажность (fixture)",
+                "en": "Relative humidity (fixture)"
+            },
+            "canonical_unit": "%",
+            "precision": 0,
+            "default_averaging_period": null,
+            "plausible_min": 0,
+            "plausible_max": 100,
+            "active": false
+        }
+    ],
+    "station_registry": [
+        {
+            "external_id": "fixture-station-001",
+            "code": "FIXTURE-001",
+            "name": {
+                "tj": "Истгоҳи озмоишӣ 001 (fixture)",
+                "ru": "Тестовая станция 001 (fixture)",
+                "en": "Fixture station 001 (fixture)"
+            },
+            "latitude": 38.5,
+            "longitude": 68.7,
+            "elevation_m": 800.0,
+            "region_code": "FIXTURE-REGION-A",
+            "district_code": null,
+            "timezone": "Asia/Dushanbe",
+            "status": "active",
+            "station_type": "air_quality",
+            "owner": "Fixture operator (not a real institution)",
+            "installed_at": "2026-01-05",
+            "parameters": ["PM25", "PM10", "NO2"],
+            "updated_at": "2026-08-31T06:00:00Z"
+        },
+        {
+            "external_id": "fixture-station-002",
+            "code": "FIXTURE-002",
+            "name": {
+                "tj": "Истгоҳи озмоишӣ 002 (fixture)",
+                "ru": "Тестовая станция 002 (fixture)",
+                "en": "Fixture station 002 (fixture)"
+            },
+            "latitude": 39.1,
+            "longitude": 67.9,
+            "elevation_m": null,
+            "region_code": "FIXTURE-REGION-B",
+            "district_code": "FIXTURE-DISTRICT-B1",
+            "timezone": "Asia/Dushanbe",
+            "status": "maintenance",
+            "station_type": "combined",
+            "owner": null,
+            "installed_at": null,
+            "parameters": ["PM25", "TA", "RH"],
+            "updated_at": "2026-08-31T06:00:00Z"
+        },
+        {
+            "external_id": "fixture-station-003",
+            "code": "FIXTURE-003",
+            "name": {
+                "tj": "Истгоҳи озмоишӣ 003 (fixture)",
+                "ru": "Тестовая станция 003 (fixture)",
+                "en": "Fixture station 003 (fixture)"
+            },
+            "latitude": 37.9,
+            "longitude": 71.5,
+            "elevation_m": 2450.5,
+            "region_code": "FIXTURE-REGION-C",
+            "district_code": "FIXTURE-DISTRICT-C1",
+            "timezone": "Asia/Dushanbe",
+            "status": "offline",
+            "station_type": "meteorological",
+            "owner": "Fixture operator (not a real institution)",
+            "installed_at": "2025-11-11",
+            "parameters": ["TA", "RH"],
+            "updated_at": "2026-08-31T06:00:00Z"
+        },
+        {
+            "_why_invalid": "Deliberately broken row for the partial-import test: the latitude is outside -90..90. The import service must reject only this row and keep the three valid stations.",
+            "external_id": "fixture-station-004",
+            "code": "FIXTURE-004",
+            "name": {
+                "tj": "Истгоҳи озмоишии нодуруст 004 (fixture)",
+                "ru": "Некорректная тестовая станция 004 (fixture)",
+                "en": "Invalid fixture station 004 (fixture)"
+            },
+            "latitude": 999.0,
+            "longitude": 68.1,
+            "elevation_m": 500.0,
+            "region_code": "FIXTURE-REGION-A",
+            "district_code": null,
+            "timezone": "Asia/Dushanbe",
+            "status": "active",
+            "station_type": "air_quality",
+            "owner": null,
+            "installed_at": null,
+            "parameters": ["PM25"],
+            "updated_at": "2026-08-31T06:00:00Z"
+        }
+    ]
+}

@@ -31,16 +31,27 @@ The current product decisions are:
 
 ## Status
 
-Phase 1 (application foundation) is complete. Data-model and integration work
-starts once the decisions marked `BLOCKING` in the Hydromet input checklist are
-answered or explicitly replaced with documented mock contracts.
+Phase 1 (application foundation) is complete.
+
+Phase 2A (station and parameter catalogue) is complete against a **mock**
+provider: the canonical schema, the station registry import service and a
+read-only administration view exist, fed by a checked-in development fixture.
+No Hydromet data has been received. The remaining data work starts once the
+decisions marked `BLOCKING` in the Hydromet input checklist are answered or
+explicitly replaced with documented mock contracts.
 
 ## Application
 
 The Phase 1 foundation is in place: a Laravel modular monolith with an Inertia
 React + TypeScript public shell, a Filament administration panel, Docker
-Compose services and the code-quality tool-chain. Station, measurement, AQI,
-SmartMet, MeteoAlert and SILAM features are not implemented yet.
+Compose services and the code-quality tool-chain.
+
+Phase 2A adds the `stations`, `parameters` and `station_parameter` tables, the
+canonical station/parameter records from `docs/03-data-contracts.md`, the
+`StationRegistryProvider` integration boundary with a fixture adapter, an
+idempotent registry import service and read-only `Station`/`Parameter` Filament
+resources. Measurements, AQI, SmartMet, MeteoAlert, SILAM, the public map and
+the public API are not implemented yet.
 
 ### Selected versions
 
@@ -71,8 +82,18 @@ individually; the foundation uses only `button`, `card`, `badge` and
 
 ```text
 app/
-  Domain/            business capabilities (only Identity is implemented)
+  Console/Commands/  Artisan commands
+  Domain/            business capabilities (Identity, Stations, Integrations)
     Identity/        users, roles, panel access
+    Integrations/    external source contracts and adapters
+      Contracts/     StationRegistryProvider
+      Fixtures/      development fixture adapter and its JSON data
+    Stations/        station registry and parameter catalogue
+      Data/          canonical records, batches, import results
+      Enums/         status, type, parameter kind, rejection reasons
+      Models/        Station, Parameter
+      Services/      StationRegistryImporter (only writer of these tables)
+  Filament/          administration resources (read-only in this phase)
   Http/              controllers and middleware
   Providers/         service and Filament panel providers
   Support/
@@ -151,11 +172,40 @@ docker compose exec app php artisan make:filament-user
 New accounts default to the `editor` role and `is_active = true`; change the
 role in the database until user management ships.
 
+### Station registry fixture
+
+Until Hydromet supplies a real registry export, the station and parameter
+catalogue is loaded from a checked-in development fixture. The data is invented
+and stored under the `fixture` source key so it can never be confused with, or
+collide with, a real provider.
+
+```bash
+docker compose exec app php artisan stations:import-fixture-registry
+```
+
+The command is idempotent: running it twice reports every row as `unchanged`
+and adds no rows. The fixture deliberately contains one broken row, so the
+output always ends with a partial result and one rejection; that is expected
+and does not make the command fail. It refuses to run in `production`.
+
 ### Test
 
 ```bash
 docker compose exec app php artisan test    # backend, SQLite in memory
 npm test                                    # frontend (Vitest)
+```
+
+A few schema guarantees — `CHECK` constraints, foreign-key behaviour and the
+PostGIS extension — exist only on PostgreSQL and are skipped on SQLite. Run the
+suite against PostgreSQL before relying on them:
+
+```bash
+docker compose exec postgres psql -U hydromet -d postgres \
+  -c "CREATE DATABASE hydromet_testing OWNER hydromet"
+
+docker compose exec \
+  -e DB_CONNECTION=pgsql -e DB_DATABASE=hydromet_testing \
+  app php artisan test
 ```
 
 ### Lint, static analysis and typecheck

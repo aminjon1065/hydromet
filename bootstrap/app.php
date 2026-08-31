@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    // Register the Artisan command classes in app/Console/Commands. Passing a
+    // console routes file to withRouting() only registers that file.
+    ->withCommands()
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [
             SetLocale::class,

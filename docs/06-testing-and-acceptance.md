@@ -204,6 +204,10 @@ no artefact and deploys nothing.
 | No panel page reachable by a guest or a deactivated user, swept over the registered routes | Automated | `tests/Feature/Security/PanelAuthorizationTest.php` |
 | No `/api` route behind a session guard | Automated | `tests/Feature/Security/PanelAuthorizationTest.php` |
 | Per-resource role matrix | Automated | `tests/Feature/*AdminResource*Test.php` |
+| `/api/v1/system/status` state machine, including the threshold boundary, tied run timestamps and a running import not erasing the last result | Automated, both drivers | `tests/Feature/Api/SystemStatusApiTest.php` |
+| The status response exposes no base URL, producer, authentication type, counters or error text | Automated | `tests/Feature/Api/SystemStatusApiTest.php` |
+| The status query cost does not grow with the number of sources | Automated | `tests/Feature/Api/SystemStatusApiTest.php` |
+| PostgreSQL refuses a staleness threshold under a minute | Automated | `tests/Feature/Integrations/SynchronizationSchemaConstraintsTest.php` |
 | A warning starts at `effective_at ?? sent_at`, with the SQL scope and the object method agreeing at every boundary | Automated | `tests/Feature/Alerts/AlertActivationRuleTest.php` |
 | A message that has not started is shown as `scheduled`, never as in force | Automated | `tests/Feature/Alerts/AlertAdminResourcesTest.php` |
 | A repeated identifier with different content is quarantined and writes nothing | Automated | `tests/Feature/Alerts/AlertIdentifierConflictTest.php` |
@@ -239,6 +243,13 @@ And nginx, not PHPUnit, is what actually emits the static headers in the Compose
 topology; the application sets them too so the guarantee is provable here and
 survives a different front end. The CSP is the exception — it carries a
 per-request nonce, so only the application can send it.
+
+`/api/v1/system/status` is exercised against synthetic sources only. A fixture
+run finishing on time proves the state machine, not a production service level:
+no real threshold has been approved and no real feed is connected, so nothing in
+that suite is evidence of an SLA. The endpoint is also not a replacement for
+`/health` — a monitoring system must keep watching `/up` and `/health`, which
+answer whether the application itself is alive and ready.
 
 Browser verification performed for the nonce policy, against the Compose stack:
 the station map with its tiles, markers and warning polygon; the ECharts station

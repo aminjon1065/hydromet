@@ -35,7 +35,7 @@ class SynchronizationSchemaConstraintsTest extends TestCase
     {
         $this->assertTrue(Schema::hasColumns('integration_sources', [
             'code', 'type', 'base_url', 'authentication_type', 'producer', 'timezone',
-            'enabled', 'polling_interval_seconds', 'timeout_seconds', 'cursor_strategy',
+            'enabled', 'polling_interval_seconds', 'stale_after_seconds', 'timeout_seconds', 'cursor_strategy',
             'overlap_seconds', 'parameter_mapping', 'unit_mapping', 'created_at', 'updated_at',
         ]));
 
@@ -234,6 +234,80 @@ class SynchronizationSchemaConstraintsTest extends TestCase
         DB::table('integration_sources')->insert($this->rawSource([
             'base_url' => 'https://svc:s3cr3t@example.test/observations',
         ]));
+    }
+
+    /**
+     * The staleness threshold and the polling interval are different questions
+     * and are stored separately, so this checks the column exists on its own
+     * terms rather than as an alias of the interval.
+     */
+    #[Test]
+    public function a_source_stores_a_staleness_threshold_independently_of_its_polling_interval(): void
+    {
+        $source = IntegrationSource::factory()->create([
+            'polling_interval_seconds' => 900,
+            'stale_after_seconds' => 7200,
+        ]);
+
+        $stored = $source->fresh();
+
+        $this->assertNotNull($stored);
+        $this->assertSame(900, $stored->polling_interval_seconds);
+        $this->assertSame(7200, $stored->stale_after_seconds);
+    }
+
+    /**
+     * Null is the honest default: Hydromet has approved no staleness rule, and
+     * the public endpoint reports such a source as `unknown` rather than
+     * inventing a threshold for it.
+     */
+    #[Test]
+    public function a_source_may_have_no_staleness_threshold_at_all(): void
+    {
+        $source = IntegrationSource::factory()->create();
+
+        $this->assertNull($source->fresh()?->stale_after_seconds);
+    }
+
+    /**
+     * @return array<string, array{int}>
+     */
+    public static function tooShortStalenessThresholds(): array
+    {
+        return [
+            'zero' => [0],
+            'one second' => [1],
+            'fifty-nine seconds' => [59],
+        ];
+    }
+
+    /**
+     * Below a minute a source would flap between states faster than any import
+     * could plausibly finish.
+     */
+    #[Test]
+    #[DataProvider('tooShortStalenessThresholds')]
+    public function postgresql_rejects_a_staleness_threshold_under_a_minute(int $seconds): void
+    {
+        $this->requirePostgres();
+
+        $this->expectException(QueryException::class);
+
+        DB::table('integration_sources')->insert($this->rawSource([
+            'stale_after_seconds' => $seconds,
+        ]));
+    }
+
+    #[Test]
+    public function postgresql_accepts_a_staleness_threshold_of_a_minute_or_more(): void
+    {
+        $this->requirePostgres();
+
+        DB::table('integration_sources')->insert($this->rawSource([
+            'stale_after_seconds' => 60,
+        ]));
+
+        $this->assertSame(60, IntegrationSource::query()->sole()->stale_after_seconds);
     }
 
     #[Test]

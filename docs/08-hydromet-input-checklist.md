@@ -98,6 +98,10 @@ still assumed, and what the portal does in the meantime.
 - [ ] Monitoring recipients and incident contacts.
 - [ ] Maintenance window.
 - [ ] Recovery point objective and recovery time objective.
+- [ ] Staleness threshold per source, in seconds, for `/api/v1/system/status`.
+      The endpoint and the column exist; until a value is approved every
+      source is published as `unknown`, which is deliberately not the same
+      as healthy. This is a separate question from the polling interval.
 - [ ] Production data access and privacy restrictions.
 - [ ] User list and approved role matrix.
 - [ ] Who may download the audit log, and where a downloaded copy may be stored.

@@ -28,6 +28,9 @@ class IntegrationSourceFactory extends Factory
             'timezone' => 'UTC',
             'enabled' => true,
             'polling_interval_seconds' => null,
+            // Null by default, exactly like a source Hydromet has not yet ruled
+            // on: the status endpoint must report it as unknown, not healthy.
+            'stale_after_seconds' => null,
             'timeout_seconds' => 30,
             'cursor_strategy' => 'none',
             'overlap_seconds' => 0,
@@ -52,6 +55,16 @@ class IntegrationSourceFactory extends Factory
             'overlap_seconds' => 300,
             'parameter_mapping' => ['PM_2_5' => 'PM25'],
             'unit_mapping' => ['mkg/m3' => 'ug/m3'],
+        ]);
+    }
+
+    /**
+     * A source with an approved staleness rule, for the cases that need one.
+     */
+    public function staleAfter(int $seconds): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'stale_after_seconds' => $seconds,
         ]);
     }
 

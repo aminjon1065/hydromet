@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\StationExportController;
 use App\Http\Controllers\Api\V1\StationIndexController;
 use App\Http\Controllers\Api\V1\StationSeriesController;
 use App\Http\Controllers\Api\V1\StationShowController;
+use App\Http\Controllers\Api\V1\SystemStatusController;
 use App\Http\Middleware\ApiRequestId;
 use Illuminate\Support\Facades\Route;
 
@@ -15,6 +16,11 @@ Route::prefix('v1')
     ->middleware([ApiRequestId::class, 'throttle:120,1'])
     ->group(function (): void {
         Route::get('/metadata', MetadataController::class)->name('api.v1.metadata');
+
+        // Whether the portal's copy of each external source is current. Not a
+        // health check of the application: /up and /health answer that, and a
+        // monitoring system must keep watching those instead of this.
+        Route::get('/system/status', SystemStatusController::class)->name('api.v1.system.status');
         Route::get('/alerts', AlertIndexController::class)->name('api.v1.alerts.index');
         // The public identity of a warning is the pair (source, identifier): a
         // CAP identifier is unique within its sender, not globally, and the

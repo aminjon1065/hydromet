@@ -127,13 +127,22 @@ Administrators can stream the immutable audit log as CSV from the panel. The
 file is language-neutral, its cells cannot be evaluated as spreadsheet formulas,
 and every export is itself recorded in the log.
 
+`GET /api/v1/system/status` publishes whether the portal's copy of each enabled
+source is current: a source code, a state, the last successful import and the
+approved staleness threshold, and nothing about the internal configuration. It
+is not a health check of the application — `/up` and `/health` answer that and
+are what a monitoring system should watch. Real thresholds are still awaited
+from Hydromet, so a source without one is published as `unknown`, which is
+deliberately not presented as healthy; no fixture result is evidence of a
+production service level.
+
 The CSV layout remains provisional until Hydromet approves an acceptance
 fixture. AQI, SmartMet layers, real source adapters (MeteoAlert included),
-manual measurement correction, real-source scheduling, queue retries,
-stale-state thresholds, approved content and navigation, and the system-status
-endpoint are not implemented yet. The `/api/v1` metadata, station list/detail,
-bounded series, CSV, published-content and alert endpoints are implemented
-against canonical local read models.
+manual measurement correction, real-source scheduling, queue retries, approved
+staleness thresholds, and approved content and navigation are not implemented
+yet. The `/api/v1` metadata, station list/detail, bounded series, CSV,
+published-content, alert and system-status endpoints are implemented against
+canonical local read models.
 
 ### Selected versions
 
@@ -475,8 +484,16 @@ docker compose down -v       # stop services and delete database/Redis volumes
 | `/up` | Liveness. Proves the framework booted. |
 | `/health` | Readiness. Also checks the database and cache store; returns `503` when either is unavailable. Contains no hostnames or credentials. |
 
-`/api/v1/system/status` stays reserved for the public source-health contract in
-`docs/05-api-contract.md` and is implemented with the first integration.
+`/api/v1/system/status` is implemented and is a different question from the two
+above: it reports whether the portal's copy of each **enabled** source is
+current, not whether the application is alive. It does not replace `/health`,
+and a monitoring system should keep watching `/up` and `/health`.
+
+It currently answers with an empty list and an overall `unknown`, because the
+fixture source is deliberately disabled and no real source exists yet. Once a
+source is enabled it reports `unknown` until an approved `stale_after_seconds`
+is entered for it — the portal will not call a source healthy on a threshold
+nobody approved. The contract is in `docs/05-api-contract.md`.
 
 ### Languages and time
 

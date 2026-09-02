@@ -234,6 +234,7 @@ and contains the before/after payload of every recorded change.
 | --- | --- |
 | `GET /up` | Liveness. The framework responded. |
 | `GET /health` | Readiness. Also checks the database and the cache store. |
+| `GET /api/v1/system/status` | Whether the portal's copy of each external source is current. **Not** a health check: monitor `/up` and `/health`, not this. |
 
 ```bash
 curl -fsS http://127.0.0.1:8080/up
@@ -249,6 +250,14 @@ Compose health checks: `nginx` fetches `/up`; `app` asks PHP-FPM to serve its
 own status page, so a pool that is listening but unable to answer is reported
 unhealthy; `queue` and `scheduler` check their process is alive; `postgres` uses
 `pg_isready`; `redis` uses `PING`.
+
+`/api/v1/system/status` reports one entry per **enabled** source, so it is empty
+today: the fixture source is deliberately disabled and no real source exists.
+Once a source is enabled it reports `unknown` until an approved
+`stale_after_seconds` is entered for it — the portal will not call a source
+healthy on a threshold nobody approved. Set the value in the database; the
+read-only panel shows it under Integration sources with the difference from the
+polling interval spelled out.
 
 **REQUIRES OWNER INPUT**: monitoring recipients and incident contacts. Nothing
 currently alerts a human when a check fails.

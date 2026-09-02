@@ -357,11 +357,25 @@ If CAP supplies only `areaDesc` or geocodes, Hydromet must also provide a stable
 
 ```text
 code, type, base_url, authentication_type, producer,
-timezone, enabled, polling_interval_seconds, timeout_seconds,
-cursor_strategy, overlap_seconds, parameter_mapping, unit_mapping
+timezone, enabled, polling_interval_seconds, stale_after_seconds,
+timeout_seconds, cursor_strategy, overlap_seconds,
+parameter_mapping, unit_mapping
 ```
 
 Secrets are not stored in ordinary JSON/database configuration fields.
+
+`stale_after_seconds` is how long a source may go without a successful import
+before `/api/v1/system/status` calls it stale. It is deliberately **not**
+`polling_interval_seconds`: the interval says how often the portal intends to
+ask, the threshold says how long silence is tolerable before a visitor should be
+told the data may be out of date. A source polled every fifteen minutes can be
+perfectly acceptable after two hours of failures, or unacceptable after twenty.
+
+Nullable, and null is not a default in disguise: it means Hydromet has approved
+no rule (`docs/08-hydromet-input-checklist.md`, section 3), and the source is
+published as `unknown` rather than as healthy. On PostgreSQL a supplied value
+must be at least 60 seconds — below a minute a source would flap between states
+faster than any import could plausibly finish. The fixture source keeps null.
 
 ### 8.2 Synchronization run
 

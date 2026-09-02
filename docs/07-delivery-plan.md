@@ -143,6 +143,13 @@ Option B figure, because only the reading edge is left.
   scanner and whether it gates a release;
 - browser, load and accessibility tests — **blocked** on a deployed test
   environment;
+- public source status (`/api/v1/system/status`) — **done**: the endpoint, the
+  `stale_after_seconds` column and the state machine exist and are tested on
+  both drivers. There is no enabled source today — the fixture source is
+  deliberately disabled — so the endpoint answers with an empty list and an
+  overall `unknown`. Real thresholds are still **blocked**
+  (`docs/08-hydromet-input-checklist.md`, section 6), so the first source that
+  is enabled will be reported as `unknown` until one is approved for it;
 - monitoring, backups and restore rehearsal — **procedures written**
   (`docs/09-runbooks.md`), **execution blocked** on the backup destination,
   monitoring recipients and RPO/RTO the VPS owner must supply (section 6 of the

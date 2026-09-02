@@ -38,6 +38,13 @@ class IntegrationSourceInfolist
                     TextEntry::make('polling_interval_seconds')
                         ->label(__('integrations.fields.polling_interval_seconds'))
                         ->placeholder(__('integrations.not_supplied')),
+                    // Distinct from the polling interval above, and the help
+                    // text says so: an operator reading two "seconds" fields
+                    // side by side has to be able to tell them apart.
+                    TextEntry::make('stale_after_seconds')
+                        ->label(__('integrations.fields.stale_after_seconds'))
+                        ->helperText(__('integrations.stale_after_help'))
+                        ->placeholder(__('integrations.not_supplied')),
                     TextEntry::make('timeout_seconds')->label(__('integrations.fields.timeout_seconds')),
                     TextEntry::make('cursor_strategy')->label(__('integrations.fields.cursor_strategy')),
                     TextEntry::make('overlap_seconds')->label(__('integrations.fields.overlap_seconds')),

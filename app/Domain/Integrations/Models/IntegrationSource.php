@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $timezone
  * @property bool $enabled
  * @property int|null $polling_interval_seconds
+ * @property int|null $stale_after_seconds Seconds of silence after which the public status endpoint reports the source as stale; null until Hydromet approves one
  * @property int $timeout_seconds
  * @property string $cursor_strategy
  * @property int $overlap_seconds
@@ -48,6 +49,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'timezone',
     'enabled',
     'polling_interval_seconds',
+    'stale_after_seconds',
     'timeout_seconds',
     'cursor_strategy',
     'overlap_seconds',
@@ -68,6 +70,7 @@ class IntegrationSource extends Model
         return [
             'enabled' => 'boolean',
             'polling_interval_seconds' => 'integer',
+            'stale_after_seconds' => 'integer',
             'timeout_seconds' => 'integer',
             'overlap_seconds' => 'integer',
             // Dictionaries, not lists: an empty mapping must encode as `{}` so

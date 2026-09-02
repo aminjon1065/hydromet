@@ -1,14 +1,24 @@
 # Portal API contract
 
 Implementation status: the `/api/v1` metadata, station list/detail, bounded
-series, CSV, published-content and alert endpoints are implemented against
-canonical local data. The alert endpoints are fed by a synthetic fixture feed,
-because Hydromet has not chosen a MeteoAlert source type
+series, CSV, published-content, alert and system-status endpoints are all
+implemented against canonical local data. The alert endpoints are fed by a
+synthetic fixture feed, because Hydromet has not chosen a MeteoAlert source type
 (`docs/08-hydromet-input-checklist.md`, section 3); the public contract does not
-change when a real adapter replaces it. The system-status endpoint remains
-pending its configuration inputs. `is_stale` and `stale_after_seconds` are
-returned as `null`, and AQI as `null`/unavailable, until Hydromet approves those
-rules.
+change when a real adapter replaces it.
+
+What is implemented is the mechanism, not the rules it needs:
+
+- `/api/v1/system/status` is implemented, and `stale_after_seconds` is stored
+  and published per source. No real threshold has been approved yet
+  (`docs/08-hydromet-input-checklist.md`, section 6), so the values in use today
+  are synthetic.
+- A source with no approved threshold is reported as `unknown`. That is
+  deliberately not the same as `healthy`: the portal has no definition of "late"
+  for it and says so rather than implying the data is current.
+- `is_stale` in station responses stays `null` until Hydromet approves a
+  staleness rule for observations.
+- AQI is `null`/unavailable until an approved versioned scheme exists.
 
 ## 1. Conventions
 
@@ -227,22 +237,75 @@ public cache and vary by `Accept-Language`.
 
 ### `GET /api/v1/system/status`
 
-Public, non-sensitive status:
+Implemented. Public, non-sensitive status of the portal's copy of each external
+source — **not** a health check of the application, and not a health check of
+Hydromet. `/up` (liveness) and `/health` (readiness) answer the first and are
+what a monitoring system must keep watching; the portal cannot see the second,
+only whether its own last import succeeded and how long ago.
 
 ```json
 {
   "status": "degraded",
-  "generated_at": "2026-08-31T06:05:00Z",
+  "generated_at": "2026-09-02T12:00:00.000000Z",
   "sources": [
     {
       "code": "hydromet_observations",
       "status": "stale",
-      "last_success_at": "2026-08-31T04:00:00Z",
+      "last_success_at": "2026-09-02T04:00:00.000000Z",
       "stale_after_seconds": 7200
     }
   ]
 }
 ```
+
+There is no `data` wrapper: the three keys are the whole response. Timestamps
+are UTC with microseconds, like every other timestamp the API publishes.
+
+Only sources with `enabled = true` are listed, ordered by `code`. Each entry
+carries exactly four fields. Nothing else about a source reaches this response —
+no base URL, producer, authentication type, timeout, counters, error code or
+sanitized error text — because the endpoint is public and those describe
+internal infrastructure.
+
+Per-source `status`:
+
+| Value | Meaning |
+| --- | --- |
+| `healthy` | The last successful import is within the approved threshold, and nothing has failed since. |
+| `degraded` | The last success is still within the threshold, but a later run finished `failed` or `partial`. |
+| `stale` | The last success is older than the threshold. |
+| `unavailable` | A threshold is approved, but no import has ever succeeded. |
+| `unknown` | No staleness threshold is approved for this source. |
+
+`last_success_at` comes from the `finished_at` of the newest `succeeded` run,
+never `started_at`: a run that began an hour ago and succeeded a minute ago is a
+minute old. It is published even when the state is `unknown`, because the
+timestamp is a fact. A run still in progress changes nothing — it has not said
+anything yet, and must not hide the last finished result.
+
+The threshold boundary belongs to the healthy side: a source becomes `stale`
+only once the threshold has been exceeded, not at the instant it is reached.
+Two runs that finish in the same microsecond are resolved by row id, so the
+answer is the same on every request and on both database engines.
+
+Overall `status`:
+
+| Value | When |
+| --- | --- |
+| `unknown` | No enabled source, or every listed source is `unknown`. |
+| `degraded` | Any source is `degraded`, `stale` or `unavailable`. |
+| `ok` | At least one source is `healthy` and none needs attention. A mix of `healthy` and `unknown` is `ok`. |
+
+`unknown` never stands in for "fine". A source whose `stale_after_seconds` is
+null has not been ruled on by Hydromet
+(`docs/08-hydromet-input-checklist.md`, section 3), and the portal says so
+rather than presenting it as healthy.
+
+Always `200` while the application can build the response; a database failure is
+rendered by the shared error envelope like any other `/api/*` failure. The
+response carries `Cache-Control: no-store` — a status one minute out of date
+would tell a visitor that a stale source is current — plus `X-Request-Id`, the
+API rate limit and the shared security headers.
 
 Do not expose internal hostnames, credentials, stack traces or raw upstream errors.
 

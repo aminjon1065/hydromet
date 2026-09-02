@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'silam' => [
+        // Public FMI page supplied for iframe embedding. This is never a data
+        // ingestion endpoint and carries no portal credentials.
+        'url' => env('SILAM_URL', 'https://silam.fmi.fi/roux/TAJ/'),
+    ],
+
 ];

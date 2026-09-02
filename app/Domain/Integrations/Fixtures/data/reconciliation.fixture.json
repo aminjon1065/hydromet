@@ -1,0 +1,34 @@
+{
+    "_notice": "SYNTHETIC DEVELOPMENT FIXTURE. Expected totals after importing the checked-in station registry, base measurements, correction and BOTH alert fixture scenarios. active_alert_count is the only time-dependent total: it holds for any instant inside the fixture warning window (2026-01-15 to 2030-01-01), which is why the reconciliation test freezes the clock. Not Hydromet acceptance data. Never use this file to approve production data.",
+    "source": "fixture",
+    "station_count": 3,
+    "measurement_count": 7,
+    "measurement_counts": [
+        {
+            "station_external_id": "fixture-station-001",
+            "parameter_code": "PM10",
+            "count": 1
+        },
+        {
+            "station_external_id": "fixture-station-001",
+            "parameter_code": "PM25",
+            "count": 3
+        },
+        {
+            "station_external_id": "fixture-station-002",
+            "parameter_code": "TA",
+            "count": 2
+        },
+        {
+            "station_external_id": "fixture-station-003",
+            "parameter_code": "RH",
+            "count": 1
+        }
+    ],
+    "first_observed_at": "2026-08-31T04:00:00.000000Z",
+    "last_observed_at": "2026-08-31T06:00:00.000000Z",
+    "missing_value_count": 1,
+    "invalid_or_suspect_count": 1,
+    "revision_count": 1,
+    "active_alert_count": 1
+}

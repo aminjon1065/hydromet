@@ -24,11 +24,70 @@ MeteoAlert). Ordinary local Eloquent access does not get a repository interface.
 | --- | --- |
 | `Identity` | Phase 1: users, roles, panel access |
 | `Stations` | Phase 2A: station registry, parameter catalogue, registry import |
-| `Measurements` | Phase 2B: canonical observations, source revision history, measurement import |
-| `Integrations` | Phase 2A/2B: `StationRegistryProvider` and `MeasurementProvider` contracts with fixture adapters. Phase 2C: source configuration and the synchronization run journal |
+| `Measurements` | Phase 2B: canonical observations, source revision history, measurement import. Public slice: bounded series aggregation and streamed CSV |
+| `Integrations` | Phase 2A/2B: provider contracts with fixture adapters. Phase 2C: synchronization journal. Phase 2D: operator views. Phase 2E: reconciliation. Phase 2F: bounded incremental windows and overlap |
+| `Content` | Translated drafts/publication, future scheduling, plain-text public page and `/api/v1/content/{slug}`, Filament create/edit with provisional least-privilege roles |
+| `Audit` | Append-only CMS create/update events with actor and before/after values; Eloquent and database mutation guards; administrator-only Filament inspection and a streamed, language-neutral CSV export |
 
-The remaining directories are placeholders so that later phases add code in the
-agreed location.
+| `Alerts` | Phase 2G: canonical CAP-vocabulary warnings, Update/Cancel resolution, affected areas, public read model, read-only operator view |
+
+`AirQuality` remains a placeholder so that policy-dependent phase adds code in
+the agreed location.
+
+## Warning lifecycle
+
+A warning starts at `effective_at ?? sent_at`, defined once in
+`AlertMessage::startsAt()` and used by both the SQL scope and the object method.
+A message whose start has not arrived is *scheduled*, not active — treating an
+absent `effective_at` as "always in force" published warnings their sender had
+dated into the future.
+
+`Alerts` stores one row per received message, never one per "warning". CAP
+models a warning as a chain — an `Alert`, then `Update`s, then possibly a
+`Cancel`, each with its own identifier and each referencing its predecessors.
+
+```text
+alert_messages   one row per message; nothing is ever deleted or rewritten
+      |
+      |  an Update or Cancel stamps superseded_by_id / superseded_at
+      |  on the messages it references
+      v
+"in force now"   a query: Actual + Public + Alert/Update,
+                 not superseded, inside the validity window
+```
+
+Keeping the chain is what lets the portal answer both "what is in force now" and
+"what did we publish yesterday". Expiry needs no write at all.
+
+`AlertMessage::scopeActiveAt()` is the single definition of "active", used by
+the public map, the API and the admin filter, so those three cannot drift apart.
+
+Geometry is GeoJSON in `jsonb` plus four derived `bbox_*` columns rather than a
+PostGIS geometry column: PostGIS would mean choosing an SRID and topology for
+boundary data that has not been supplied, and would split spatial behaviour
+between the PostgreSQL and SQLite suites. Promoting it later is additive.
+
+### Repeated identifiers and append-only history
+
+A repeat that restates the stored message is `unchanged`; a repeat carrying
+different content is quarantined as `identifier_conflict` and writes nothing.
+`AlertMessageComparison` decides which of the two it is, normalising the things
+that carry no meaning — JSON key order, the element order of the CAP sets
+`categories` and `references`, the order of the affected areas and of the
+geocodes inside one area, and `69` versus `69.0` in a coordinate. Order is
+normalised by sorting lists, never by keying them, so two identical areas are
+still not one.
+
+Supersession is resolved from the stored message's own `message_type` and
+`references`. Reading them from the incoming repeat is how a stored `Alert`
+resent as a `Cancel` would withdraw warnings it never referenced.
+
+Both tables are append-only at the Eloquent boundary and at the database
+boundary. A message may never be deleted or rewritten; its one permitted change
+is a supersession stamp, and both halves move together — half a stamp, a
+self-supersession, and any later change to a stamp already set are all refused,
+identically on PostgreSQL and SQLite. Areas are write-once outright. See
+`docs/03-data-contracts.md` section 7.2.
 
 ## Shared canonical utilities
 
@@ -67,6 +126,7 @@ owned tables
 | --- | --- | --- | --- |
 | `StationRegistryProvider` | `Stations\Data\StationRecord`, `ParameterRecord` | `Stations\Services\StationRegistryImporter` | `stations`, `parameters`, `station_parameter` |
 | `MeasurementProvider` | `Measurements\Data\MeasurementRecord` | `Measurements\Services\MeasurementImporter` | `measurements`, `measurement_revisions` |
+| `AlertProvider` | `Alerts\Data\AlertRecord`, `AlertAreaRecord` | `Alerts\Services\AlertImporter` | `alert_messages`, `alert_areas` |
 
 `Integrations` never writes those tables. Each import service is the only writer
 of its own, so validation and persistence rules live in one place.
@@ -120,3 +180,73 @@ What is recorded instead:
 The trade-off is deliberate and visible: the log says which run failed and how
 it failed in type terms, not why. Neither the console nor `sanitized_error`
 promises details that are not there.
+
+## Operator views
+
+Phase 2D exposes `IntegrationSource` and `SynchronizationRun` as read-only
+Filament resources. They share `ReadOnlyResource`, register only `index` and
+`view`, and resolve non-numeric record keys to a consistent 404 on PostgreSQL.
+The run view reads rejected rows through the journal relation and displays only
+their already-sanitized `reference`, `reason_code` and `safe_detail` fields.
+
+## Reconciliation and incremental windows
+
+`DataReconciler` captures source-scoped aggregate totals without retaining raw
+payloads and compares them with an approved `ReconciliationSnapshot`. The only
+expectation currently checked in is explicitly synthetic; Hydromet's signed
+reference-period totals replace it for production acceptance.
+
+`SynchronizationWindowPlanner` requires an explicit bootstrap start for the
+first bounded import. Later windows start at the latest succeeded/partial
+`cursor_to` minus `IntegrationSource.overlap_seconds`; failed/running attempts
+cannot advance it. `MeasurementSynchronizer` verifies provider/source identity,
+passes the window to the adapter and journals the exact requested bounds before
+the provider is touched.
+
+## Public measurement reads
+
+`PublicStationOverview` selects the latest publishable reading per active
+station/parameter. `PublicStationSeries` applies the four fixed public periods,
+keeps 24-hour and 7-day data raw, and aggregates 30 days by hour and one year by
+day. Both queries exclude invalid values and inactive parameters; missing raw
+observations stay `null`. `StationExportController` applies the same station,
+period, active-parameter and public-quality boundaries while streaming rows so
+a full year is never materialized in PHP memory.
+
+The same read models back `/api/v1/metadata` and the station list, detail,
+series and CSV routes. API input is strictly bounded: timestamps require an
+explicit ISO 8601 zone, parameters must belong to the station, raw/hour/day/
+month ranges have fixed maxima, and aggregation days/months follow either UTC
+or `Asia/Dushanbe` boundaries. API failures share a request-id-bearing envelope;
+raw exceptions and provider details are never returned.
+
+## Content publication and audit
+
+`ContentItem` stores explicit `tj`, `ru` and `en` columns. Drafts may be
+incomplete; a model invariant blocks publication without every title/body and a
+publication time. Public queries additionally require `published_at <= now()`.
+Bodies remain plain text so no untrusted HTML reaches React.
+
+`ContentItemObserver` sends successful creates and changed business fields to
+`AuditRecorder`. Audit rows are append-only at two boundaries: Eloquent throws
+on update/delete, and SQLite/PostgreSQL triggers reject direct mutations. The
+actor foreign key is restrictive, matching the identity rule that an account
+with history is deactivated rather than deleted. Only administrators may inspect
+the read-only Filament audit resource until Hydromet approves the final matrix.
+
+Because the log cannot be corrected, evidence leaves the system by export.
+`AuditEventExportRows` streams it in id order in bounded chunks, so a log of any
+size exports in constant memory. Three properties are deliberate:
+
+- the columns are stored machine values and UTC ISO 8601 timestamps, never
+  translated labels, so the file does not depend on the exporting
+  administrator's language;
+- every cell passes through `SpreadsheetSafeText`, so a CMS title stored as
+  `=HYPERLINK(...)` reaches a spreadsheet as text rather than as a formula. The
+  guard is safe here because no column is a number — the measurement export
+  deliberately does not use it, since a negative reading legitimately starts
+  with `-`;
+- taking a copy is recorded as an `audit_exported` event, and that row's id is
+  the export's exclusive upper bound. The bound is an id rather than a timestamp
+  because `occurred_at` is stored to the second, so an entry written in the same
+  second could not otherwise be distinguished.

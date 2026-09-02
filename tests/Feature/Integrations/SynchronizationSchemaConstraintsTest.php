@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Integrations;
 
+use App\Domain\Integrations\Enums\SynchronizationKind;
 use App\Domain\Integrations\Models\IntegrationSource;
 use App\Domain\Integrations\Models\SynchronizationRejectedRow;
 use App\Domain\Integrations\Models\SynchronizationRun;
@@ -284,7 +285,31 @@ class SynchronizationSchemaConstraintsTest extends TestCase
 
         $this->expectException(QueryException::class);
 
-        DB::table('synchronization_runs')->insert($this->rawRun(['kind' => 'alerts']));
+        // Not a capability the portal has an import service for. 'alerts' used
+        // to serve as the example here and became a real kind, which is exactly
+        // the drift this test exists to catch.
+        DB::table('synchronization_runs')->insert($this->rawRun(['kind' => 'air_quality_index']));
+    }
+
+    #[Test]
+    public function postgresql_accepts_every_kind_the_application_can_produce(): void
+    {
+        $this->requirePostgres();
+
+        // The database vocabulary and the enum must not drift apart: a kind the
+        // application can emit but the constraint refuses would fail only in
+        // production, and only for that one import.
+        foreach (SynchronizationKind::cases() as $kind) {
+            DB::table('synchronization_runs')->insert($this->rawRun([
+                'kind' => $kind->value,
+                'source_id' => IntegrationSource::factory()->create()->id,
+            ]));
+        }
+
+        $this->assertSame(
+            count(SynchronizationKind::cases()),
+            SynchronizationRun::query()->count(),
+        );
     }
 
     #[Test]

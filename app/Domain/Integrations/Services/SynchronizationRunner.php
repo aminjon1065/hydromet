@@ -3,6 +3,7 @@
 namespace App\Domain\Integrations\Services;
 
 use App\Domain\Integrations\Data\SynchronizationOutcome;
+use App\Domain\Integrations\Data\SynchronizationWindow;
 use App\Domain\Integrations\Enums\SynchronizationKind;
 use App\Domain\Integrations\Enums\SynchronizationStatus;
 use App\Domain\Integrations\Models\IntegrationSource;
@@ -44,8 +45,9 @@ final class SynchronizationRunner
         IntegrationSource $source,
         SynchronizationKind $kind,
         Closure $work,
+        ?SynchronizationWindow $window = null,
     ): SynchronizationRun {
-        $run = $this->open($source, $kind);
+        $run = $this->open($source, $kind, $window);
 
         try {
             $outcome = $work($run);
@@ -104,13 +106,18 @@ final class SynchronizationRunner
      * Open the run in its own transaction so the `running` row is durable
      * before any provider is touched.
      */
-    private function open(IntegrationSource $source, SynchronizationKind $kind): SynchronizationRun
-    {
+    private function open(
+        IntegrationSource $source,
+        SynchronizationKind $kind,
+        ?SynchronizationWindow $window,
+    ): SynchronizationRun {
         return DB::transaction(fn (): SynchronizationRun => SynchronizationRun::query()->create([
             'source_id' => $source->id,
             'kind' => $kind,
             'started_at' => Carbon::now('UTC'),
             'status' => SynchronizationStatus::Running,
+            'cursor_from' => $window?->from,
+            'cursor_to' => $window?->to,
         ]));
     }
 

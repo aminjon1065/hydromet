@@ -2,7 +2,9 @@
 
 Russian project summary: [README.ru.md](README.ru.md).
 
-This repository contains the source requirements, the project specification and the implemented application foundation (Phase 1) for a new standalone environmental monitoring portal for Tajikistan.
+This repository contains the source requirements, the project specification and
+the implementation in progress for a new standalone environmental monitoring
+portal for Tajikistan.
 
 The current product decisions are:
 
@@ -23,6 +25,7 @@ The current product decisions are:
 - [Testing and acceptance](docs/06-testing-and-acceptance.md)
 - [Delivery plan and estimate](docs/07-delivery-plan.md)
 - [Inputs required from Hydromet](docs/08-hydromet-input-checklist.md)
+- [Operational runbooks](docs/09-runbooks.md)
 
 ## Source documents
 
@@ -33,13 +36,31 @@ The current product decisions are:
 
 Phase 1 (application foundation) is complete.
 
-Phase 2A (station and parameter catalogue) and Phase 2B (measurement storage and
-source revisions) are complete against **mock** providers: the canonical schema,
-both import services and a read-only administration view exist, fed by
-checked-in development fixtures. No Hydromet data has been received. The
-remaining data work starts once the decisions marked `BLOCKING` in the Hydromet
-input checklist are answered or explicitly replaced with documented mock
-contracts.
+Phases 2A–2F are complete against **mock** providers: the canonical station and
+measurement schema, both import services, the synchronization journal and its
+read-only operator views, aggregate reconciliation, and bounded incremental
+window/overlap workflow exist, fed by checked-in development fixtures. No
+Hydromet data has been received. A real provider adapter and its scheduled job
+remain blocked until the decisions marked `BLOCKING` in the Hydromet input
+checklist are answered or explicitly replaced with documented mock contracts.
+
+The safe mock-backed part of Phase 3 is also implemented: the multilingual
+public station overview uses a Leaflet map, each public station has historical
+ECharts views for 24 hours, 7 days, 30 days and 1 year, and the same selected
+period/parameters can be streamed as CSV. Invalid values are excluded and
+missing values remain gaps. The supplied SILAM view is available separately as
+an iframe with a direct-link fallback. These screens clearly identify fixture
+data; they are not Hydromet observations.
+
+Phase 2G adds the mock-backed MeteoAlert vertical slice: a canonical warning
+model with full CAP `Alert`/`Update`/`Cancel` lifecycle and message history, a
+provider-neutral `AlertProvider` boundary with a fixture adapter, an idempotent
+import journalled through the existing synchronization runner, `/api/v1/alerts`
+and `/api/v1/alerts/{identifier}`, warning polygons on the existing station map
+with an accessible warning list and a legend, and a read-only administrative
+view. The warnings are invented demonstration data, labelled as such in all
+three languages on every screen that shows them. No MeteoAlert source has been
+chosen yet, so no real adapter exists.
 
 ## Application
 
@@ -62,9 +83,57 @@ value.
 Phase 2C adds the `integration_sources`, `synchronization_runs` and
 `synchronization_rejected_rows` tables and the `SynchronizationRunner` that
 journals every import attempt. Both fixture commands now run through it, so each
-invocation leaves a run with its status, counters and quarantined rows. AQI,
-SmartMet, MeteoAlert, SILAM, manual correction, incremental scheduling, retries,
-the public map, charts and the public API are not implemented yet.
+invocation leaves a run with its status, counters and quarantined rows.
+
+Phase 2D exposes integration-source configuration, synchronization runs and
+safe rejected-row summaries in Filament. These operator resources only register
+list and view routes: synchronization evidence cannot be created, edited or
+deleted through the panel.
+
+Phase 2E adds deterministic aggregate reconciliation for the fixture dataset.
+Phase 2F adds bounded UTC synchronization windows, persisted run cursors and
+configurable overlap. Its fixture contract proves a late source correction is
+captured without duplicating measurements.
+
+The first public portal slice adds the national station map and current values,
+localized station metadata, historical charts with server-side hourly/daily
+aggregation, parameter/period filters, source synchronization time and a
+memory-safe streamed CSV export. SILAM is embedded from the configured FMI URL
+under a page-specific frame policy. A local CMS now supports incomplete drafts,
+three required title/body translations for publication, future publication,
+plain-text public pages and `/api/v1/content/{slug}`. Administrators and editors
+may create/edit content; operators have read-only access. Content creation and
+changes write immutable before/after audit events, visible only to
+administrators under the provisional least-privilege role matrix.
+
+Response hardening is in place and covered by tests: baseline security headers
+and a Content Security Policy on every response, including error and
+unmatched-route responses; a SILAM frame permission derived from the configured
+embed URL that fails closed; API failures that never disclose an exception,
+stack trace or credential even with `APP_DEBUG` on; and a panel-wide sweep
+asserting that no administration page is reachable by a guest or a deactivated
+user.
+
+Every public response carries a per-request `script-src` nonce, so an injected
+script is refused unless it carries a value the attacker cannot predict. Styles
+default to `'self' 'unsafe-inline'`; `CSP_STYLE_NONCE=true` switches them to the
+nonce form, which additionally needs `style-src-attr 'unsafe-inline'` for the
+inline style attributes Leaflet sets — see `config/security.php` for why that is
+not the default. The administration panel runs on a separate, weaker policy
+because Filament renders inline scripts that accept no nonce and Alpine
+evaluates its expressions with `new AsyncFunction`.
+
+Administrators can stream the immutable audit log as CSV from the panel. The
+file is language-neutral, its cells cannot be evaluated as spreadsheet formulas,
+and every export is itself recorded in the log.
+
+The CSV layout remains provisional until Hydromet approves an acceptance
+fixture. AQI, SmartMet layers, real source adapters (MeteoAlert included),
+manual measurement correction, real-source scheduling, queue retries,
+stale-state thresholds, approved content and navigation, and the system-status
+endpoint are not implemented yet. The `/api/v1` metadata, station list/detail,
+bounded series, CSV, published-content and alert endpoints are implemented
+against canonical local read models.
 
 ### Selected versions
 
@@ -79,6 +148,8 @@ the public map, charts and the public API are not implemented yet.
 | Tailwind CSS | 4.x |
 | shadcn/ui CLI | 4.x |
 | Filament | 5.x |
+| Leaflet / React Leaflet | 1.9 / 5.x |
+| ECharts | 6.x |
 | PostgreSQL / PostGIS | 18 / 3.6 |
 | Redis | 8.x |
 | Nginx | 1.29 |
@@ -143,8 +214,14 @@ docker compose up -d          # nginx, app, queue, scheduler, postgres, redis
 npm run dev                   # Vite dev server with hot reload
 ```
 
-The portal is served on `http://localhost:8080` (`APP_HTTP_PORT`), the
-administration panel on `http://localhost:8080/admin`.
+The portal is served on `http://localhost:8080` (`APP_HTTP_PORT`), the SILAM
+view on `http://localhost:8080/silam`, and the administration panel on
+`http://localhost:8080/admin`. Station detail URLs are generated from the
+public overview after fixture or approved production data has been imported.
+Published CMS pages use `http://localhost:8080/content/{slug}`; the corresponding
+JSON endpoint is `http://localhost:8080/api/v1/content/{slug}`.
+The versioned read API starts at `http://localhost:8080/api/v1/metadata` and
+`http://localhost:8080/api/v1/stations`.
 
 ### Container topology and published ports
 
@@ -210,6 +287,7 @@ fixture must be imported first, because a measurement is tied to a station by
 ```bash
 docker compose exec app php artisan measurements:import-fixture-batch --scenario=base
 docker compose exec app php artisan measurements:import-fixture-batch --scenario=correction
+docker compose exec app php artisan data:reconcile-fixture
 ```
 
 `base` is a small historical batch containing one reading with no value
@@ -224,10 +302,40 @@ rewritten, so replaying `base` afterwards is rejected as a stale revision rather
 than undoing the correction. `--scenario` is required and accepts only `base` or
 `correction`, and the command refuses to run in `production`.
 
+### Warning fixtures
+
+Warnings come from the same invented `fixture` source. Hydromet has not chosen a
+MeteoAlert source type, so there is no real adapter and these are demonstration
+data only (`docs/08-hydromet-input-checklist.md`, section 3).
+
+```bash
+docker compose exec app php artisan alerts:import-fixture-feed --scenario=baseline
+docker compose exec app php artisan alerts:import-fixture-feed --scenario=lifecycle
+```
+
+`baseline` contains an active warning with one polygon, a warning with two
+affected areas (one of them a MultiPolygon), an already-expired warning, a
+`Test`-status message that must never reach the public, and one deliberately
+broken row whose area is a `LineString` and is therefore rejected.
+
+`lifecycle` sends an `Update` for the first warning and a `Cancel` for the
+second. The `Update` supersedes its predecessor and takes its place; the
+`Cancel` withdraws its target and is never itself displayed. Both superseded
+messages stay in `alert_messages`, because the published history is the point.
+
+Both scenarios are idempotent: re-running reports every message as `unchanged`
+and supersedes nothing further. `--scenario` is required and accepts only
+`baseline` or `lifecycle`, and the command refuses to run in `production`.
+
+Event codes carry a `FIXTURE_` prefix, and the severity colours on the map are a
+provisional portal choice labelled as such in all three languages — neither is
+an approved Hydromet vocabulary.
+
 ### Synchronization journal
 
-Both fixture commands run through `SynchronizationRunner`, so every invocation
-is recorded in `synchronization_runs` (docs/03-data-contracts.md, section 8).
+All three fixture commands run through `SynchronizationRunner`, so every
+invocation is recorded in `synchronization_runs`
+(docs/03-data-contracts.md, section 8).
 The `fixture` row in `integration_sources` is created on first use; no seeding
 step is needed.
 
@@ -257,25 +365,70 @@ message routinely carries a DSN, an `Authorization` header or a slice of the
 raw payload. Reproducing a cause means re-running the import with the
 provider's own diagnostics.
 
+Active panel users can inspect the same non-secret data without database access:
+
+- `/admin/integration-sources` lists source configuration and mappings;
+- `/admin/synchronization-runs` lists attempts, counters and statuses;
+- each run view includes its sanitized rejected-row summaries.
+
+These pages are strictly read-only. Credentials, raw provider payloads,
+exception messages and stack traces are neither stored nor displayed.
+
+### Fixture data reconciliation
+
+After importing the registry, base measurement batch and correction batch, run:
+
+```bash
+docker compose exec app php artisan data:reconcile-fixture
+```
+
+The command compares station count, measurement count by station and parameter,
+observation bounds, missing/invalid/suspect counts and revision count with the
+checked-in synthetic expectation. It exits non-zero and prints every differing
+aggregate when anything is missing or extra. It is blocked in production and is
+explicitly not Hydromet acceptance evidence; the real reference-period totals
+must be supplied and approved by Hydromet.
+
+### Incremental synchronization core
+
+`SynchronizationWindowPlanner` starts from an explicit bootstrap boundary,
+then builds each next UTC interval from the latest completed cursor minus the
+source's configured overlap. Failed and still-running attempts never advance
+that cursor. `MeasurementSynchronizer` applies the bounded provider read through
+the same idempotent importer and stores the exact attempted interval on the run.
+The checked-in correction fixture proves that a late correction inside the
+overlap is applied once and recorded as a source revision.
+
 ### Test
 
 ```bash
-docker compose exec app php artisan test    # backend, SQLite in memory
-npm test                                    # frontend (Vitest)
+docker compose exec app composer test    # backend, SQLite in memory
+npm test                                 # frontend (Vitest)
 ```
 
-A few schema guarantees — `CHECK` constraints, foreign-key behaviour and the
-PostGIS extension — exist only on PostgreSQL and are skipped on SQLite. Run the
-suite against PostgreSQL before relying on them:
+`tests/TestEnvironment.php` pins cache, session, queue, mail and broadcasting to
+isolated drivers before PHPUnit loads a test, so a run behaves the same on the
+host and inside Compose, which passes the whole `.env` to every service. The
+database defaults to SQLite in memory and only an explicit opt-in moves it; an
+inherited `DB_CONNECTION` or `DB_DATABASE` never does.
+
+A few schema guarantees — `CHECK` constraints, trigger-enforced immutability,
+foreign-key behaviour and the PostGIS extension — exist only on PostgreSQL and
+are skipped on SQLite. Create the scratch database once, then run the suite
+against PostgreSQL before relying on them:
 
 ```bash
 docker compose exec postgres psql -U hydromet -d postgres \
   -c "CREATE DATABASE hydromet_testing OWNER hydromet"
 
-docker compose exec \
-  -e DB_CONNECTION=pgsql -e DB_DATABASE=hydromet_testing \
-  app php artisan test
+docker compose exec app composer test:pgsql
 ```
+
+`composer test:pgsql` sets `HYDROMET_TEST_DB=pgsql`, uses the scratch database
+`hydromet_testing` and runs with `--fail-on-skipped`, so a PostgreSQL-only
+guarantee that stops executing fails the run instead of disappearing. Host, port
+and credentials still come from `.env`. `HYDROMET_TEST_DATABASE` renames the
+scratch database; naming the application's own database aborts the run.
 
 ### Lint, static analysis and typecheck
 
@@ -288,8 +441,25 @@ composer check       # lint + analyse + test
 npm run lint         # ESLint
 npm run types:check  # tsc --noEmit
 npm run format       # Prettier, frontend sources only
+npm run format:check # Prettier, check only
 npm run build        # production asset bundle
 ```
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `master` and every pull
+request, in three parallel jobs:
+
+| Job | Checks |
+| --- | --- |
+| Backend | `composer validate --strict`, `composer lint`, `composer analyse`, `composer test` |
+| Backend (PostgreSQL) | `composer test:pgsql` against a `postgis/postgis:18-3.6` service, no skipped tests |
+| Frontend | `npm ci`, `format:check`, `lint`, `types:check`, `npm test`, `npm run build` |
+
+It installs from `composer.lock` and `package-lock.json`, uses the PHP version
+in `docker/php/Dockerfile` and the Node version in `.nvmrc`, and publishes no
+artefact and no deployment. The commands are the ones above, so a green pipeline
+and a green local run mean the same thing.
 
 ### Stop
 

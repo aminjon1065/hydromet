@@ -11,6 +11,13 @@ This estimate reflects the clarified scope:
 - three public languages;
 - public portal, administration, audit, production VPS, documentation and training remain required.
 
+Implementation snapshot (2026-09-01): the mock-backed data platform, station
+map/detail/charts/CSV, SILAM iframe, versioned station/content read API, initial
+three-language CMS and immutable CMS audit foundation are implemented. Real
+adapters, alert/AQI policy, stale thresholds, manual correction authorization,
+approved content/navigation and production operations still depend on the
+inputs listed in `08-hydromet-input-checklist.md`.
+
 ## 2. Work estimate
 
 | Work package | Development days |
@@ -89,17 +96,57 @@ Forking `smartmet-alert-client` instead of the recommended Leaflet alert layer a
 
 ### Phase 4 — alerts and AQI, weeks 5–7
 
-- MeteoAlert adapter and warning map;
-- Update/Cancel handling;
-- SILAM iframe;
-- approved AQI configuration and advice.
+- MeteoAlert adapter and warning map — **done against a synthetic feed**: the
+  canonical model, provider boundary, import, journalling, `/api/v1/alerts`,
+  the map layer and the read-only admin view exist. The remaining work is one
+  adapter class once Hydromet names the source type;
+- Update/Cancel handling — **done**, including message history and the
+  supersession rules behind `ALERT-02` and `ALERT-03`;
+- SILAM iframe — **done**;
+- approved AQI configuration and advice — **blocked**
+  (`docs/08-hydromet-input-checklist.md`, section 4). Nothing is published.
+
+What the fixture work does not buy: acceptance. `ALERT-01` to `ALERT-04` are
+covered, not passed, until the same scenarios run against Hydromet's real
+samples. The estimate for that adapter stays at the low end of the 5–8 day
+Option B figure, because only the reading edge is left.
 
 ### Phase 5 — administration and hardening, weeks 7–9
 
-- roles, correction workflow and audit;
-- content completion;
-- security, browser, load and accessibility tests;
-- monitoring, backups and restore rehearsal.
+- roles and audit — **done for the capabilities that exist**: the provisional
+  least-privilege matrix, the append-only audit log with database-level mutation
+  guards, and an administrator-only streamed CSV export of it;
+- measurement correction workflow — **blocked**
+  (`docs/08-hydromet-input-checklist.md`, section 3): who may correct a value,
+  and the mandatory reason vocabulary, are not decided;
+- content completion — **done for the local CMS**; approved navigation and
+  editorial content are **blocked** (section 5);
+- security tests — **done for what can be proved locally**: response headers and
+  the baseline CSP, the SILAM frame permission, rate-limit headers, non-
+  disclosure of exceptions and credentials in API failures, and a panel-wide
+  sweep proving no administration page is reachable by a guest or a deactivated
+  user. See `docs/06-testing-and-acceptance.md`, section 6.1;
+- `script-src` nonce — **done** for every public response, and verified in a
+  browser against the station map, the charts, the language dropdown and the
+  navigation progress bar;
+- `style-src` nonce — **implemented and tested, off by default**
+  (`CSP_STYLE_NONCE`). It requires `style-src-attr 'unsafe-inline'` for the
+  inline style attributes Leaflet sets, and that directive is CSP Level 3, so a
+  browser without it would render no map. Turning it on needs a decision about
+  which browsers the portal must support, and verification in each;
+- CSP for the administration panel — **outstanding**, not blocked by Hydromet.
+  Filament renders inline scripts with no nonce support and Alpine evaluates
+  expressions with `new AsyncFunction`, so the panel runs on `'unsafe-inline'
+  'unsafe-eval'`. Closing it means publishing and patching Filament's Blade
+  views, or upstream nonce support;
+- dependency vulnerability scanning — **outstanding**: needs a decision on the
+  scanner and whether it gates a release;
+- browser, load and accessibility tests — **blocked** on a deployed test
+  environment;
+- monitoring, backups and restore rehearsal — **procedures written**
+  (`docs/09-runbooks.md`), **execution blocked** on the backup destination,
+  monitoring recipients and RPO/RTO the VPS owner must supply (section 6 of the
+  Hydromet input checklist).
 
 ### Phase 6 — acceptance, documentation and training, weeks 9–10+
 
@@ -127,6 +174,6 @@ If any of those assumptions changes, use a written change request with added tim
 | G0 Scope ready | Blocking checklist answered; sample payloads archived |
 | G1 Data foundation | Registry/history reconciliation passes |
 | G2 Public MVP | Map, station detail, chart and CSV pass browser tests |
-| G3 Alerts/AQI | CAP lifecycle and approved AQI fixtures pass |
+| G3 Alerts/AQI | CAP lifecycle and approved AQI fixtures pass — CAP lifecycle demonstrated on a synthetic feed; the gate itself needs Hydromet's samples and an approved AQI scheme |
 | G4 Release candidate | Security/load/backup tests pass; translations approved |
 | G5 Production | Signed acceptance dataset, documents and training delivered |

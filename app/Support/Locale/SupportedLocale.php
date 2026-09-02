@@ -20,13 +20,19 @@ enum SupportedLocale: string
 
     /**
      * BCP 47 / ISO tag used for HTML `lang`, `Content-Language` and CAP.
+     *
+     * Region-qualified for every language, not only Tajik, so the tag the
+     * server renders into `<html lang>` on first load is the same tag the
+     * client re-applies after an Inertia language switch. Two spellings of the
+     * same language would make the two paths disagree, which is precisely the
+     * defect this single source of truth exists to prevent.
      */
     public function bcp47(): string
     {
         return match ($this) {
             self::Tajik => 'tg-TJ',
-            self::Russian => 'ru',
-            self::English => 'en',
+            self::Russian => 'ru-RU',
+            self::English => 'en-GB',
         };
     }
 

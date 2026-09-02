@@ -3,6 +3,7 @@
 namespace App\Domain\Integrations\Fixtures;
 
 use App\Domain\Integrations\Contracts\MeasurementProvider;
+use App\Domain\Integrations\Data\SynchronizationWindow;
 use App\Domain\Measurements\Data\MeasurementBatch;
 use App\Domain\Measurements\Data\MeasurementRecord;
 use App\Support\Canonical\InvalidCanonicalRow;
@@ -61,12 +62,16 @@ final class FixtureMeasurementProvider implements MeasurementProvider
         return 'built-in development fixture, '.$this->scenario->describe().' ('.basename($this->path).')';
     }
 
-    public function fetchMeasurements(): MeasurementBatch
+    public function fetchMeasurements(?SynchronizationWindow $window = null): MeasurementBatch
     {
         $records = [];
         $rejections = [];
 
         foreach ($this->rows() as $index => $row) {
+            if ($window !== null && ! $this->rowMayBelongToWindow($row, $window)) {
+                continue;
+            }
+
             // The provider owns its key; the payload never states one.
             $row['source'] = self::SOURCE_KEY;
 
@@ -82,6 +87,29 @@ final class FixtureMeasurementProvider implements MeasurementProvider
         }
 
         return new MeasurementBatch(self::SOURCE_KEY, $records, $rejections);
+    }
+
+    /**
+     * The fixture file represents a full provider history, so a bounded read is
+     * simulated before mapping. A row with an unreadable timestamp is retained
+     * and rejected by canonical mapping; silently excluding it would hide bad
+     * source data from the operator.
+     *
+     * @param  array<array-key, mixed>  $row
+     */
+    private function rowMayBelongToWindow(array $row, SynchronizationWindow $window): bool
+    {
+        $observedAt = $row['observed_at'] ?? null;
+
+        if (! is_string($observedAt)) {
+            return true;
+        }
+
+        try {
+            return $window->contains(new \DateTimeImmutable($observedAt));
+        } catch (\Exception) {
+            return true;
+        }
     }
 
     /**

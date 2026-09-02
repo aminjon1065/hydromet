@@ -4,12 +4,15 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\SetLocale;
 use App\Support\Locale\SupportedLocale;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 class LocaleTest extends TestCase
 {
+    use RefreshDatabase;
+
     #[Test]
     public function the_fallback_locale_is_russian(): void
     {

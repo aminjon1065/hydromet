@@ -1,0 +1,303 @@
+{
+    "_notice": "SYNTHETIC DEVELOPMENT FIXTURE. Not Hydromet data and not a MeteoAlert sample. Every identifier, sender, event code, severity, headline, instruction and polygon is invented for local development and automated tests. Event codes carry a FIXTURE_ prefix because Hydromet's catalogue is a BLOCKING input (docs/08-hydromet-input-checklist.md, section 3); they are placeholders, not a national vocabulary. Never load this file into a production environment.",
+    "_validity_note": "The active messages expire in 2030 so the demonstration feed stays active while the portal is being built. A real warning is in force for hours, not years. AlertFixtureFeedTest fails once these dates fall into the past, so the fixture cannot rot silently.",
+    "scenario": "baseline",
+    "fixture_version": "2026-09-02.1",
+    "generated_at": "2026-09-02T06:00:00Z",
+    "alerts": [
+        {
+            "_why_here": "A plain active warning with one polygon. The lifecycle feed sends an Update for it.",
+            "identifier": "fixture-alert-0001",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Actual",
+            "message_type": "Alert",
+            "scope": "Public",
+            "event_code": "FIXTURE_HEAVY_RAIN",
+            "severity": "Severe",
+            "urgency": "Expected",
+            "certainty": "Likely",
+            "category": ["Met"],
+            "references": [],
+            "parameters": {
+                "FIXTURE_RAINFALL_MM": "40-60",
+                "FIXTURE_WINDOW": "PT12H"
+            },
+            "sent_at": "2026-01-15T05:00:00Z",
+            "effective_at": "2026-01-15T05:00:00Z",
+            "onset_at": "2026-01-15T09:00:00Z",
+            "expires_at": "2030-01-01T00:00:00Z",
+            "headline": {
+                "tj": "Огоҳии озмоишӣ: борони шадид (fixture)",
+                "ru": "Тестовое предупреждение: сильный дождь (fixture)",
+                "en": "Fixture warning: heavy rain (fixture)"
+            },
+            "description": {
+                "tj": "Маълумоти намунавӣ барои санҷиши портал. Ин огоҳии воқеӣ нест.",
+                "ru": "Демонстрационные данные для проверки портала. Это не настоящее предупреждение.",
+                "en": "Demonstration data used to exercise the portal. This is not a real warning."
+            },
+            "instruction": {
+                "tj": "Ин матни намунавист ва тавсияи расмӣ намебошад.",
+                "ru": "Это демонстрационный текст, а не официальная рекомендация.",
+                "en": "This is demonstration text, not an official recommendation."
+            },
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии A (fixture)",
+                        "ru": "Тестовый регион A (fixture)",
+                        "en": "Fixture region A (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-A" }],
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [68.4, 38.3],
+                                [69.0, 38.3],
+                                [69.0, 38.8],
+                                [68.4, 38.8],
+                                [68.4, 38.3]
+                            ]
+                        ]
+                    },
+                    "altitude_m": null,
+                    "ceiling_m": null
+                }
+            ]
+        },
+        {
+            "_why_here": "Two affected areas in one message, so the map and the API are exercised with a multi-area warning. The lifecycle feed cancels it.",
+            "identifier": "fixture-alert-0002",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Actual",
+            "message_type": "Alert",
+            "scope": "Public",
+            "event_code": "FIXTURE_STRONG_WIND",
+            "severity": "Moderate",
+            "urgency": "Future",
+            "certainty": "Possible",
+            "category": ["Met"],
+            "references": [],
+            "parameters": { "FIXTURE_GUST_MS": "18-22" },
+            "sent_at": "2026-01-15T05:10:00Z",
+            "effective_at": "2026-01-15T05:10:00Z",
+            "onset_at": null,
+            "expires_at": "2030-01-01T00:00:00Z",
+            "headline": {
+                "tj": "Огоҳии озмоишӣ: шамоли шадид (fixture)",
+                "ru": "Тестовое предупреждение: сильный ветер (fixture)",
+                "en": "Fixture warning: strong wind (fixture)"
+            },
+            "description": {
+                "tj": "Маълумоти намунавӣ бо ду минтақаи фарогирифта.",
+                "ru": "Демонстрационные данные с двумя затронутыми районами.",
+                "en": "Demonstration data covering two affected areas."
+            },
+            "instruction": null,
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии B (fixture)",
+                        "ru": "Тестовый регион B (fixture)",
+                        "en": "Fixture region B (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-B" }],
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [67.6, 38.9],
+                                [68.2, 38.9],
+                                [68.2, 39.4],
+                                [67.6, 39.4],
+                                [67.6, 38.9]
+                            ]
+                        ]
+                    },
+                    "altitude_m": null,
+                    "ceiling_m": null
+                },
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии C (fixture)",
+                        "ru": "Тестовый регион C (fixture)",
+                        "en": "Fixture region C (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-C" }],
+                    "geometry": {
+                        "type": "MultiPolygon",
+                        "coordinates": [
+                            [
+                                [
+                                    [71.2, 37.7],
+                                    [71.8, 37.7],
+                                    [71.8, 38.1],
+                                    [71.2, 38.1],
+                                    [71.2, 37.7]
+                                ]
+                            ],
+                            [
+                                [
+                                    [72.0, 38.2],
+                                    [72.4, 38.2],
+                                    [72.4, 38.5],
+                                    [72.0, 38.5],
+                                    [72.0, 38.2]
+                                ]
+                            ]
+                        ]
+                    },
+                    "altitude_m": 1500.0,
+                    "ceiling_m": 4000.0
+                }
+            ]
+        },
+        {
+            "_why_here": "Already expired. It must be stored as history and must never appear in the active view (ALERT-04).",
+            "identifier": "fixture-alert-0003",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Actual",
+            "message_type": "Alert",
+            "scope": "Public",
+            "event_code": "FIXTURE_LOW_TEMPERATURE",
+            "severity": "Minor",
+            "urgency": "Past",
+            "certainty": "Observed",
+            "category": ["Met"],
+            "references": [],
+            "parameters": {},
+            "sent_at": "2026-01-01T00:00:00Z",
+            "effective_at": "2026-01-01T00:00:00Z",
+            "onset_at": null,
+            "expires_at": "2026-01-02T00:00:00Z",
+            "headline": {
+                "tj": "Огоҳии озмоишии мӯҳлаташ гузашта (fixture)",
+                "ru": "Истёкшее тестовое предупреждение (fixture)",
+                "en": "Expired fixture warning (fixture)"
+            },
+            "description": {
+                "tj": "Ин огоҳӣ аллакай беэътибор аст ва танҳо дар таърих боқӣ мемонад.",
+                "ru": "Это предупреждение уже недействительно и остаётся только в истории.",
+                "en": "This warning is no longer in force and remains only in the history."
+            },
+            "instruction": null,
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии A (fixture)",
+                        "ru": "Тестовый регион A (fixture)",
+                        "en": "Fixture region A (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-A" }],
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [68.4, 38.3],
+                                [69.0, 38.3],
+                                [69.0, 38.8],
+                                [68.4, 38.8],
+                                [68.4, 38.3]
+                            ]
+                        ]
+                    },
+                    "altitude_m": null,
+                    "ceiling_m": null
+                }
+            ]
+        },
+        {
+            "_why_here": "A Test-status message. It is stored so an operator can see it arrived, and must never reach a public read.",
+            "identifier": "fixture-alert-0004",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Test",
+            "message_type": "Alert",
+            "scope": "Public",
+            "event_code": "FIXTURE_SYSTEM_CHECK",
+            "severity": "Extreme",
+            "urgency": "Immediate",
+            "certainty": "Observed",
+            "category": ["Met"],
+            "references": [],
+            "parameters": {},
+            "sent_at": "2026-01-15T05:20:00Z",
+            "effective_at": null,
+            "onset_at": null,
+            "expires_at": "2030-01-01T00:00:00Z",
+            "headline": {
+                "tj": "Санҷиши система (fixture)",
+                "ru": "Системная проверка (fixture)",
+                "en": "System check (fixture)"
+            },
+            "description": {
+                "tj": "Паёми санҷишӣ. Ҳеҷ гоҳ ба ҷамъият нишон дода намешавад.",
+                "ru": "Тестовое сообщение. Никогда не показывается публично.",
+                "en": "Test message. Never shown to the public."
+            },
+            "instruction": null,
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии A (fixture)",
+                        "ru": "Тестовый регион A (fixture)",
+                        "en": "Fixture region A (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-A" }],
+                    "geometry": null,
+                    "altitude_m": null,
+                    "ceiling_m": null
+                }
+            ]
+        },
+        {
+            "_why_invalid": "Deliberately broken row for the partial-import test: a LineString cannot be drawn as an affected area, so the importer must reject only this message and keep the four above.",
+            "identifier": "fixture-alert-0005",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Actual",
+            "message_type": "Alert",
+            "scope": "Public",
+            "event_code": "FIXTURE_BROKEN_GEOMETRY",
+            "severity": "Moderate",
+            "urgency": "Expected",
+            "certainty": "Possible",
+            "category": ["Met"],
+            "references": [],
+            "parameters": {},
+            "sent_at": "2026-01-15T05:30:00Z",
+            "effective_at": null,
+            "onset_at": null,
+            "expires_at": "2030-01-01T00:00:00Z",
+            "headline": {
+                "tj": "Огоҳии нодуруст (fixture)",
+                "ru": "Некорректное предупреждение (fixture)",
+                "en": "Invalid fixture warning (fixture)"
+            },
+            "description": {
+                "tj": "Ин сатр бояд рад карда шавад.",
+                "ru": "Эта строка должна быть отклонена.",
+                "en": "This row must be rejected."
+            },
+            "instruction": null,
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии A (fixture)",
+                        "ru": "Тестовый регион A (fixture)",
+                        "en": "Fixture region A (fixture)"
+                    },
+                    "geocodes": [],
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [
+                            [68.4, 38.3],
+                            [69.0, 38.8]
+                        ]
+                    },
+                    "altitude_m": null,
+                    "ceiling_m": null
+                }
+            ]
+        }
+    ]
+}

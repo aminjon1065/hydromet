@@ -15,12 +15,32 @@ class SupportedLocaleTest extends TestCase
         $this->assertSame(['tj', 'ru', 'en'], SupportedLocale::values());
     }
 
+    /**
+     * Every locale gets a region-qualified tag, not only Tajik: the server
+     * renders this into `<html lang>` and the client re-applies the same value
+     * after a language switch, so a second spelling would make the two paths
+     * disagree on the same language.
+     */
     #[Test]
-    public function the_internal_tajik_key_is_mapped_to_a_standards_based_tag(): void
+    public function the_internal_keys_are_mapped_to_standards_based_tags(): void
     {
         $this->assertSame('tg-TJ', SupportedLocale::Tajik->bcp47());
-        $this->assertSame('ru', SupportedLocale::Russian->bcp47());
-        $this->assertSame('en', SupportedLocale::English->bcp47());
+        $this->assertSame('ru-RU', SupportedLocale::Russian->bcp47());
+        $this->assertSame('en-GB', SupportedLocale::English->bcp47());
+    }
+
+    /**
+     * The mapping is one-way. An external tag still resolves back to the
+     * internal key, which stays `tj` everywhere inside the application.
+     */
+    #[Test]
+    public function a_standards_based_tag_resolves_back_to_its_internal_key(): void
+    {
+        foreach (SupportedLocale::cases() as $locale) {
+            $this->assertSame($locale, SupportedLocale::resolve($locale->bcp47()));
+        }
+
+        $this->assertSame('tj', SupportedLocale::Tajik->value);
     }
 
     #[Test]

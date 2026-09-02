@@ -3,6 +3,7 @@
 namespace App\Domain\Measurements\Services;
 
 use App\Domain\Integrations\Contracts\MeasurementProvider;
+use App\Domain\Integrations\Data\SynchronizationWindow;
 use App\Domain\Measurements\Data\MeasurementBatch;
 use App\Domain\Measurements\Data\MeasurementImportResult;
 use App\Domain\Measurements\Data\MeasurementRecord;
@@ -46,9 +47,11 @@ use Illuminate\Support\Facades\DB;
  */
 final class MeasurementImporter
 {
-    public function import(MeasurementProvider $provider): MeasurementImportResult
-    {
-        return $this->importBatch($provider->fetchMeasurements());
+    public function import(
+        MeasurementProvider $provider,
+        ?SynchronizationWindow $window = null,
+    ): MeasurementImportResult {
+        return $this->importBatch($provider->fetchMeasurements($window));
     }
 
     public function importBatch(MeasurementBatch $batch): MeasurementImportResult

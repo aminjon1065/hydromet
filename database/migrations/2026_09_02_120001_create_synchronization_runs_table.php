@@ -20,9 +20,9 @@ use Illuminate\Support\Facades\Schema;
  * name), because a provider failure message routinely carries a DSN with its
  * password, an `Authorization` header or a slice of the raw payload.
  *
- * `cursor_from` / `cursor_to` and `response_checksum` are part of the contract
- * and are created here, but nothing fills them yet: bounded incremental queries
- * and raw response handling belong to the incremental sync phase.
+ * `cursor_from` / `cursor_to` record the exact bounded interval handed to an
+ * incremental provider. `response_checksum` remains optional until a real
+ * adapter defines which sanitized response bytes are authoritative.
  *
  * CHECK constraints are applied on PostgreSQL only; SQLite cannot add table
  * constraints after creation, and the same rules are enforced by the runner.

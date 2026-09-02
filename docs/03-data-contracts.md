@@ -204,6 +204,105 @@ Every published index stores the scheme/version and input observation IDs so it 
 
 The internal warning model follows CAP 1.2 semantics even when the source is WFS GeoJSON.
 
+Implementation status: implemented against synthetic fixtures as
+`alert_messages` + `alert_areas`, written only by
+`App\Domain\Alerts\Services\AlertImporter`. Deviations from the table below,
+each deliberate and each tied to a blocked input:
+
+| Field | Status |
+| --- | --- |
+| `raw_payload` | Column created, never written. "Sanitized authoritative message" has no sanitization rule until the source type is known, and storing an unsanitized upstream document would breach the untrusted-input rule. |
+| `parameters` | Stored as a flat string-to-string map. The portal carries provider values verbatim and never parses them into numbers it would have to justify. |
+| `category` | Stored as `categories` (JSON array). |
+| geometry | Stored as GeoJSON in `jsonb` plus four derived `bbox_*` columns, not as a PostGIS geometry column. Committing to PostGIS would mean choosing an SRID and topology for boundary data that has not been supplied, and would split spatial behaviour between the PostgreSQL and SQLite suites. Promoting it later is an additive migration. |
+| geocode-only areas | Accepted and stored, but not drawable and never matched by a `bbox` filter, until Hydromet supplies the administrative boundary dataset. |
+
+Lifecycle resolution is stored, not recomputed: an `Update` or `Cancel` stamps
+`superseded_by_id` / `superseded_at` on the messages it references. Nothing is
+deleted, so "what is in force now" is a query and the published history stays
+reconstructable. Expiry needs no write at all.
+
+Publication is deliberately narrow: only `Actual` + `Public` + `Alert`/`Update`,
+not superseded, inside the validity window. `Test`, `Exercise`, `Draft`,
+`System`, `Restricted` and `Private` messages are stored so an operator can see
+that they arrived, and are excluded from every public read.
+
+The validity window starts at `effective_at ?? sent_at`. CAP makes `effective`
+optional and says a message takes effect when it was sent if it is absent — not
+that it has always been in force — so a message with no `effective_at` and a
+`sent_at` in the future is **scheduled**, not active. That rule has one
+definition (`AlertMessage::startsAt()`), used by the SQL scope, the object
+method, the public API, the map and the panel, and a test asserts the scope and
+the method agree at every boundary on both drivers. The panel shows a message
+that has not started as `scheduled`, never as in force.
+
+### 7.1 Repeated identifiers
+
+`source` + `identifier` is the published identity of a warning, and a stored
+message is authoritative. CAP corrects a warning by sending a new message with a
+new identifier, never by resending an old one with different content, so:
+
+- a repeat that restates the stored message is `unchanged`, and may still finish
+  a supersession an earlier run left half-done;
+- a repeat carrying different content is a provider or feed fault. It is
+  quarantined as `identifier_conflict` and **nothing** is written: not the
+  message, not its areas, and not the supersession of any other message.
+
+The comparison is semantic. Normalised, because none of them is a content
+change: JSON object key order; the element order of `categories` and
+`references` (CAP sets, not sequences); the order of a message's affected areas
+and of the geocodes inside one area; and the difference between `69` and `69.0`
+in a coordinate. Normalising order does not collapse duplicates — the lists are
+sorted, never keyed — so a feed that drops one of two identical areas has still
+changed what it published. Coordinate order stays significant: reversing a
+polygon ring is a different shape.
+
+Supersession is always resolved from the **stored** message's own
+`message_type` and `references`, never from the record that arrived with it.
+Trusting the incoming copy is how a stored `Alert` resent as a `Cancel` would
+withdraw warnings it never referenced.
+
+### 7.2 Append-only history
+
+The history is enforced at two boundaries, matching the audit log:
+
+| Rule | Eloquent | Database |
+| --- | --- | --- |
+| An `alert_messages` row is never deleted | `deleting` throws | `BEFORE DELETE` trigger; `BEFORE TRUNCATE` on PostgreSQL |
+| Message content is never rewritten | `updating` rejects any dirty column outside the supersession stamp | PostgreSQL compares the row with `to_jsonb` minus three columns; SQLite names each column |
+| A supersession stamp is written once, and both halves move together | `updating` rejects half a stamp, a self-supersession and any change to an already-set stamp | Dedicated triggers on both engines |
+| An `alert_areas` row is never changed or deleted | `updating` and `deleting` throw | `BEFORE UPDATE OR DELETE` trigger; `BEFORE TRUNCATE` on PostgreSQL |
+
+The only permitted write to a stored message is `superseded_by_id` +
+`superseded_at` (plus the technical `updated_at`), once. The stamp has exactly
+one legal transition:
+
+| From | To | Verdict |
+| --- | --- | --- |
+| `(null, null)` | `(null, null)` | allowed — only `updated_at` moved |
+| `(null, null)` | `(id, timestamp)` | allowed, unless the id is the row's own |
+| `(null, null)` | `(id, null)` or `(null, timestamp)` | refused |
+| `(id, timestamp)` | anything different | refused |
+
+That transition is spelled out in the triggers on both engines rather than left
+to PostgreSQL's `CHECK`, because the `CHECK` has no SQLite counterpart: SQLite
+used to accept a `superseded_by_id` with a null `superseded_at`, and a message
+superseding itself, on both the insert and the update path. A test environment
+that refuses less than production proves less than it appears to, so the
+supersession tests run on both drivers and none of them is skipped.
+
+Both boundaries are needed: model events catch the assignment a developer would
+actually write, the triggers catch the mass update or raw statement that never
+loads a model — which is the path the importer itself uses to stamp supersession.
+
+Migration `2026_09_02_120011_add_alert_history_immutability_guards` installs the
+database half and its `down()` removes it.
+
+Required translations are enforced, and there is no fallback between `tj`, `ru`
+and `en`: a warning shown in the wrong language is worse than one reported as
+unavailable. `instruction` is optional for a whole message but never in one
+language only.
+
 | Field | Type | Required | CAP origin |
 | --- | --- | --- | --- |
 | `source` | string | yes | Portal metadata |
@@ -291,3 +390,28 @@ Content records use explicit translations rather than embedding HTML from extern
 ```
 
 Publication is blocked when a required language is missing unless an administrator explicitly uses an approved fallback policy.
+
+Current implementation details:
+
+- `title` and `body` are required in `tj`, `ru` and `en` before publication;
+- `summary` is optional in each language;
+- drafts may remain incomplete;
+- `published_at` is mandatory for published records and may schedule a future publication;
+- bodies are stored and rendered as plain text, never trusted HTML;
+- no fallback publication policy is enabled before Hydromet approves one.
+
+## 10. Administrative audit contract
+
+Sensitive administrative changes append an immutable event:
+
+```text
+occurred_at, actor_id, action,
+subject_type, subject_id, subject_label,
+changes.fields, changes.before, changes.after
+```
+
+The application and database both reject updates and deletes. Users referenced
+as actors are deactivated rather than deleted. The initial implementation
+records CMS creation and changed business fields; manual-measurement correction
+will append its own audited action only after Hydromet approves the role and
+reason workflow.

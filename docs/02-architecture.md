@@ -167,3 +167,126 @@ SmartMet processing is not installed on this VPS under the clarified scope. If t
 - External HTML is sanitized; CAP descriptions are treated as untrusted text.
 - The SILAM iframe uses an explicit Content Security Policy `frame-src` allowance and restrictive sandbox attributes compatible with the FMI page.
 - Logs must not contain API keys, passwords or full authorization headers.
+
+### 9.1 Implemented response hardening
+
+`App\Http\Middleware\SecurityHeaders` runs as the outermost global middleware,
+so it also covers an unmatched route and a response produced by the exception
+handler, which never reach group middleware. It sends:
+
+| Header | Value |
+| --- | --- |
+| `X-Content-Type-Options` | `nosniff` |
+| `X-Frame-Options` | `SAMEORIGIN` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `X-Permitted-Cross-Domain-Policies` | `none` |
+| `Content-Security-Policy` | the policy for the surface, unless the route pinned its own |
+
+The policy is composed once, in `App\Http\Security\ContentSecurityPolicy`, from
+a baseline that is safe everywhere:
+
+```
+base-uri 'self'; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; object-src 'none'
+```
+
+Directives are emitted in alphabetical order, so the header does not depend on
+the order a caller composed it in.
+
+**Public pages** add a per-request nonce:
+
+```
+script-src 'self' 'nonce-<40 random characters>'; style-src 'self' 'unsafe-inline'
+```
+
+An injected `<script>` is refused unless it carries a value the attacker cannot
+predict. `'self'` stays alongside the nonce because the entry module imports its
+page chunks dynamically, and those are same-origin files rather than inline
+scripts. `'unsafe-eval'` is absent: nothing in the public bundle evaluates
+strings as code.
+
+The nonce is minted by the middleware through `Vite::useCspNonce()` before the
+response is produced, so Laravel stamps it on every script, stylesheet and
+preload tag it renders, and Livewire reads the same value. Two libraries create
+`<style>` elements at runtime and are told the nonce explicitly: Inertia's
+progress bar, through `createInertiaApp({ nonce })`, and the scroll lock Radix
+applies while a dropdown is open, through `window.__webpack_nonce__`. The value
+is read back from the entry script tag's `nonce` IDL property, so it is not
+exposed in a readable attribute.
+
+**Styles** default to `'unsafe-inline'` rather than a nonce, and
+`config/security.php` explains why in full. In short: a nonce cannot be attached
+to an inline `style` attribute, Leaflet positions every map pane with one, and
+the companion directive that fixes this — `style-src-attr 'unsafe-inline'` — is
+CSP Level 3. A browser that has not implemented it ignores it, falls back to
+`style-src`, and the map stops rendering. `CSP_STYLE_NONCE=true` switches the
+whole portal to the nonce form; it was verified working in Chrome, and needs
+verification in the audience's other browsers before release.
+
+**The SILAM page** takes the public policy and widens exactly one directive,
+`frame-src`, with the origin derived from `services.silam.url`. Deriving rather
+than hard-coding means changing `SILAM_URL` cannot leave a page rendering an
+iframe its own policy blocks. A URL that is not an absolute `https` origin
+leaves `frame-src 'none'` in place: an unusable embed fails closed, visible as
+an empty frame with its working fallback link.
+
+**The administration panel** cannot use the nonce policy, and pins its own:
+
+```
+script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'
+```
+
+This is a real weakening and it is deliberate, not an oversight. Filament
+renders inline `<script>` and `<style>` blocks from its own Blade views, which
+accept no nonce, and the Alpine build Livewire ships compiles every `x-`
+expression with `new AsyncFunction`. Serving the panel the public policy was
+tried: the login page rendered unstyled and non-functional, with 21 `EvalError`
+exceptions from Livewire's evaluator. The concession therefore applies only to
+authenticated panel routes, while the public portal — the surface an anonymous
+visitor can reach — keeps the nonce. Removing it means either publishing and
+patching Filament's Blade views or waiting for upstream nonce support; it is
+recorded as an open item in `docs/07-delivery-plan.md`.
+
+`docker/nginx/default.conf` sends the same static headers at the edge, from
+`docker/nginx/snippets/security-headers.conf`. Two details matter and are
+enforced there:
+
+- nginx inherits `add_header` from an outer level only while the inner level
+  declares none of its own, so every location that sets its own header repeats
+  the snippet. Without that, `location /build/` would serve the built assets
+  with no `nosniff`.
+- nginx appends rather than replaces, and a repeated `X-Content-Type-Options` is
+  read as one invalid value, which disables the protection. The PHP location
+  therefore hides the application's copies with `fastcgi_hide_header`, leaving
+  the edge as the single source in this topology while the application keeps the
+  guarantee for any other front end and makes it provable in the test suite.
+
+### 9.2 Failure disclosure
+
+Every `/api/*` failure is rendered by `App\Http\Api\ApiErrorRenderer` into the
+fixed envelope. The exception class, message, file, line and stack trace never
+appear in a response, including when `APP_DEBUG` is on; `X-Request-Id` is the
+only diagnostic channel and correlates the safe response with the server log.
+Only `Allow`, `Retry-After`, `WWW-Authenticate` and `X-RateLimit-*` survive from
+a failing response; everything else it carried, including cookies and upstream
+headers, is dropped.
+
+### 9.3 Audit export
+
+`GET /admin/exports/audit-events.csv` streams the immutable audit log for an
+active administrator, and is registered inside the panel's authenticated route
+group so it inherits the panel session, CSRF and authentication middleware.
+
+- Columns are stored machine values, never translated labels, and timestamps are
+  UTC ISO 8601, so the file is byte-identical whichever language the exporting
+  administrator is working in.
+- Every cell passes through `App\Support\Csv\SpreadsheetSafeText`, which prefixes
+  a value beginning with `=`, `+`, `-`, `@`, tab or a carriage return with an
+  apostrophe and strips C0 control characters. A CMS title stored as
+  `=HYPERLINK(...)` therefore reaches the spreadsheet as text. The guard is
+  correct here because no column is a number; the measurement export
+  deliberately does not use it, since a negative reading legitimately starts
+  with `-`.
+- Taking a copy is itself recorded as an `audit_exported` event, and that entry
+  is the export's exclusive upper bound. The bound is a row id rather than a
+  timestamp because `occurred_at` is stored to the second, so an entry written
+  in the same second would otherwise be indistinguishable.

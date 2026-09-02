@@ -178,6 +178,38 @@ Start with Option B. Keep `smartmet-alert-client` as a verified reference implem
 
 If the customer explicitly requires the FMI five-column national warning map, add Option A as a separately accepted work package. Do not let the Finnish WFS response shape become the portal's database contract.
 
+### 7.1 Implemented state
+
+Option B is implemented against a synthetic fixture feed. `smartmet-alert-client`
+was used as a reference only: no FMI code, markup, geometry format or region
+model was copied, and nothing was forked.
+
+What exists:
+
+| Piece | Where |
+| --- | --- |
+| Canonical warning model | `alert_messages`, `alert_areas` (`docs/03-data-contracts.md`, section 7) |
+| Provider boundary | `App\Domain\Integrations\Contracts\AlertProvider` |
+| Fixture adapter | `App\Domain\Integrations\Fixtures\FixtureAlertProvider`, two scenarios |
+| Import service | `App\Domain\Alerts\Services\AlertImporter`, the only writer of those tables |
+| Journalling | the existing `SynchronizationRunner`, kind `alerts` |
+| Public read | `App\Domain\Alerts\Queries\PublicAlertOverview`, `/api/v1/alerts` |
+| Public UI | warning polygons on the existing Leaflet station map, plus an accessible warning list and a legend |
+| Administration | read-only `AlertMessageResource` |
+
+What a real adapter has to do, and nothing else: read Hydromet's chosen format
+and return `AlertRecord`s. The public portal, API and database contract do not
+change with it. That is the whole reason the fixture is written in the canonical
+shape rather than in an invented CAP or WFS document — inventing a wire format
+would be inventing Hydromet's source.
+
+Still blocked (section 3 of `docs/08-hydromet-input-checklist.md`): the source
+type and endpoint, the event-code catalogue, severity/urgency/certainty
+publication rules, the three-language text strategy, polygons or an
+administrative-boundary dataset, and the refresh/stale thresholds. Until those
+arrive the portal publishes `FIXTURE_`-prefixed event codes, a provisional and
+explicitly-labelled severity palette, and no health advice at all.
+
 ## 8. SmartMet Timeseries integration
 
 SmartMet's Timeseries plugin is a query API for observations and forecasts. A typical JSON observation request uses:

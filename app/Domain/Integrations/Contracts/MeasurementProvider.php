@@ -2,6 +2,7 @@
 
 namespace App\Domain\Integrations\Contracts;
 
+use App\Domain\Integrations\Data\SynchronizationWindow;
 use App\Domain\Measurements\Data\MeasurementBatch;
 use App\Domain\Measurements\Services\MeasurementImporter;
 
@@ -17,9 +18,11 @@ use App\Domain\Measurements\Services\MeasurementImporter;
  * the batch's rejections, so one bad row cannot discard a good batch. They may
  * throw only when the whole read failed.
  *
- * The interface takes no interval or cursor. Bounded incremental queries and
- * overlap handling belong to the incremental sync phase; adding them now would
- * be a contract invented ahead of the requirement it serves.
+ * A null window requests the provider's complete configured batch (used by the
+ * fixture-backed historical import). Incremental callers always pass a bounded
+ * UTC window planned by the Integrations capability. A real adapter must apply
+ * that range upstream rather than downloading unbounded history and filtering
+ * it in the portal.
  */
 interface MeasurementProvider
 {
@@ -36,5 +39,5 @@ interface MeasurementProvider
      */
     public function describeOrigin(): string;
 
-    public function fetchMeasurements(): MeasurementBatch;
+    public function fetchMeasurements(?SynchronizationWindow $window = null): MeasurementBatch;
 }

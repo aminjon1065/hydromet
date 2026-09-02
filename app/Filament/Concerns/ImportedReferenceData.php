@@ -2,8 +2,6 @@
 
 namespace App\Filament\Concerns;
 
-use Illuminate\Database\Eloquent\Model;
-
 /**
  * Marks a Filament resource as a read-only view of imported reference data.
  *
@@ -19,63 +17,5 @@ use Illuminate\Database\Eloquent\Model;
  */
 trait ImportedReferenceData
 {
-    public static function canViewAny(): bool
-    {
-        return true;
-    }
-
-    public static function canView(Model $record): bool
-    {
-        return true;
-    }
-
-    public static function canCreate(): bool
-    {
-        return false;
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return false;
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return false;
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return false;
-    }
-
-    public static function canForceDelete(Model $record): bool
-    {
-        return false;
-    }
-
-    public static function canForceDeleteAny(): bool
-    {
-        return false;
-    }
-
-    public static function canRestore(Model $record): bool
-    {
-        return false;
-    }
-
-    public static function canRestoreAny(): bool
-    {
-        return false;
-    }
-
-    public static function canReplicate(Model $record): bool
-    {
-        return false;
-    }
-
-    public static function canReorder(): bool
-    {
-        return false;
-    }
+    use ReadOnlyResource;
 }

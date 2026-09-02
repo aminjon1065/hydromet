@@ -71,4 +71,26 @@ enum RejectionReason: string
 
     /** A source batch claimed a manually entered reading. */
     case ManualEntryNotSupported = 'manual_entry_not_supported';
+
+    /** A warning area used a geometry the portal cannot draw. */
+    case UnsupportedGeometry = 'unsupported_geometry';
+
+    /** A warning's validity window is impossible: it ends before it starts. */
+    case InvalidValidityWindow = 'invalid_validity_window';
+
+    /** A warning carries no affected area, so nothing could be shown. */
+    case MissingAffectedArea = 'missing_affected_area';
+
+    /** An Update or Cancel names no message to supersede. */
+    case MissingReference = 'missing_reference';
+
+    /** A required translation was absent, and no fallback rule is approved. */
+    case IncompleteTranslation = 'incomplete_translation';
+
+    /**
+     * A stored identifier was resent with different content. CAP corrects a
+     * warning with a new identifier, so this is a provider or feed fault and
+     * the stored message is kept untouched.
+     */
+    case IdentifierConflict = 'identifier_conflict';
 }

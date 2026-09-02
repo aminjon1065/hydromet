@@ -28,8 +28,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon $started_at
  * @property Carbon|null $finished_at
  * @property SynchronizationStatus $status
- * @property Carbon|null $cursor_from
- * @property Carbon|null $cursor_to
+ * @property Carbon|null $cursor_from Exact lower bound requested from an incremental provider
+ * @property Carbon|null $cursor_to Exact upper bound requested from an incremental provider
  * @property int $received_count
  * @property int $accepted_count
  * @property int $updated_count

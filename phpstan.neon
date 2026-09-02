@@ -4,6 +4,14 @@ includes:
 parameters:
     level: 8
 
+    # Larastan boots the application from a bootstrap file to build its
+    # reflection. Run in worker processes that boot raced each other and the
+    # bootstrap intermittently failed, after which the analysis aborted with
+    # "Undefined constant Larastan\Larastan\LARAVEL_VERSION" instead of a
+    # result. One process is slower and always correct.
+    parallel:
+        maximumNumberOfProcesses: 1
+
     paths:
         - app
         - config

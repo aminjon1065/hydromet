@@ -35,15 +35,34 @@ Items marked `BLOCKING` must be supplied before their associated implementation 
 
 ## 3. MeteoAlert — BLOCKING
 
+The canonical warning model, import service, public API, map layer and admin
+view are built and tested against a synthetic feed
+(`docs/04-smartmet-and-alerts.md`, section 7.1). Each item below names what is
+still assumed, and what the portal does in the meantime.
+
+| Input | Currently assumed | Consequence if the assumption is wrong |
+| --- | --- | --- |
+| Source type | None. The provider boundary is format-agnostic; only a fixture adapter exists. | A new adapter class. No change to the model, API or UI. |
+| Event code catalogue | `FIXTURE_`-prefixed placeholders. | Display mapping and icons; no schema change. |
+| Severity publication rules | CAP severity ranking only; all `Actual` + `Public` messages are published. | The publication filter in `AlertMessage::scopeActiveAt()` changes. |
+| Severity colours | A provisional palette in `resources/js/lib/alert-severity.ts`, labelled as not official on every screen. | One file changes. |
+| Three-language text | All three required, no fallback; `instruction` all-or-none. | If Hydromet supplies fewer languages, the no-fallback rule and the NOT NULL columns both have to be revisited — this is the assumption most likely to force a migration. |
+| Geometry | GeoJSON Polygon/MultiPolygon in `jsonb` plus derived bbox columns; no PostGIS column. | Promoting to PostGIS is an additive migration once SRID and boundary data are known. |
+| Geocode-only areas | Stored, but not drawable and never bbox-matched. | Needs the administrative-boundary dataset before such a warning can appear on the map. |
+| Refresh / stale threshold | None. Nothing is scheduled; the fixture command is manual. | Scheduler phase. |
+| `raw_payload` | Column exists, never written. | Needs a sanitization rule tied to the chosen source type. |
+
 - [ ] Source type: CAP Atom/XML, CAP files, WFS GeoJSON or custom JSON.
 - [ ] Production and test endpoint/path.
 - [ ] Samples for Alert, Update, Cancel and expired alert.
 - [ ] Samples with multiple affected areas.
 - [ ] Exact event code catalogue.
 - [ ] Severity/urgency/certainty publication rules.
-- [ ] Tajik, Russian and English text strategy.
+- [ ] Tajik, Russian and English text strategy — specifically, whether all three are always supplied.
 - [ ] Polygons in feed or administrative-boundary dataset plus geocodes.
 - [ ] Refresh frequency and stale threshold.
+- [ ] Approved severity colour scale, or written confirmation that the portal may keep its own provisional palette.
+- [ ] Sanitization rule for retaining the authoritative message (`raw_payload`).
 - [ ] Confirmation whether FMI-style five-day SVG UI is mandatory or a unified Leaflet warning layer is accepted.
 
 ## 4. AQI and health advice — BLOCKING for AQI publication
@@ -81,6 +100,17 @@ Items marked `BLOCKING` must be supplied before their associated implementation 
 - [ ] Recovery point objective and recovery time objective.
 - [ ] Production data access and privacy restrictions.
 - [ ] User list and approved role matrix.
+- [ ] Who may download the audit log, and where a downloaded copy may be stored.
+      The export at `GET /admin/exports/audit-events.csv` is administrator-only
+      and names administrators by e-mail, so the answer is a data-handling rule,
+      not a code change (`docs/09-runbooks.md`, section 8).
+- [ ] Retention period for the audit log itself. The table is append-only by
+      database trigger and nothing prunes it; a retention rule needs an approved
+      procedure before it can be implemented, not a delete statement.
+- [ ] Production API rate-limit budget. The current `120/minute` is a
+      development placeholder chosen without traffic figures.
+- [ ] Whether a dependency vulnerability scan must gate a release, and which
+      scanner is acceptable on the VPS owner's infrastructure.
 
 ## 7. Contract/addendum confirmations
 

@@ -1,0 +1,112 @@
+{
+    "_notice": "SYNTHETIC DEVELOPMENT FIXTURE. Not Hydromet data and not a MeteoAlert sample. This feed exercises the CAP Update and Cancel semantics against the baseline feed, so the baseline must be imported first. Never load this file into a production environment.",
+    "scenario": "lifecycle",
+    "fixture_version": "2026-09-02.1",
+    "generated_at": "2026-09-02T07:00:00Z",
+    "alerts": [
+        {
+            "_why_here": "ALERT-02: an Update supersedes its referenced predecessor. fixture-alert-0001 must leave the active view while staying in the history, and this message takes its place with an escalated severity and a wider polygon.",
+            "identifier": "fixture-alert-0001-update-1",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Actual",
+            "message_type": "Update",
+            "scope": "Public",
+            "event_code": "FIXTURE_HEAVY_RAIN",
+            "severity": "Extreme",
+            "urgency": "Immediate",
+            "certainty": "Observed",
+            "category": ["Met"],
+            "references": ["fixture-alert-0001"],
+            "parameters": {
+                "FIXTURE_RAINFALL_MM": "70-90",
+                "FIXTURE_WINDOW": "PT6H"
+            },
+            "sent_at": "2026-01-15T06:30:00Z",
+            "effective_at": "2026-01-15T06:30:00Z",
+            "onset_at": "2026-01-15T07:00:00Z",
+            "expires_at": "2030-01-01T00:00:00Z",
+            "headline": {
+                "tj": "Навсозии озмоишӣ: борони хеле шадид (fixture)",
+                "ru": "Тестовое обновление: очень сильный дождь (fixture)",
+                "en": "Fixture update: very heavy rain (fixture)"
+            },
+            "description": {
+                "tj": "Ин паём огоҳии қаблиро иваз мекунад. Маълумоти намунавӣ.",
+                "ru": "Это сообщение заменяет предыдущее предупреждение. Демонстрационные данные.",
+                "en": "This message replaces the previous warning. Demonstration data."
+            },
+            "instruction": {
+                "tj": "Ин матни намунавист ва тавсияи расмӣ намебошад.",
+                "ru": "Это демонстрационный текст, а не официальная рекомендация.",
+                "en": "This is demonstration text, not an official recommendation."
+            },
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи васеъшудаи озмоишӣ A (fixture)",
+                        "ru": "Расширенный тестовый регион A (fixture)",
+                        "en": "Widened fixture region A (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-A" }],
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [68.2, 38.1],
+                                [69.2, 38.1],
+                                [69.2, 39.0],
+                                [68.2, 39.0],
+                                [68.2, 38.1]
+                            ]
+                        ]
+                    },
+                    "altitude_m": null,
+                    "ceiling_m": null
+                }
+            ]
+        },
+        {
+            "_why_here": "ALERT-03: a Cancel withdraws its references and is never itself displayed. fixture-alert-0002 must disappear from the active view while both messages remain in the history.",
+            "identifier": "fixture-alert-0002-cancel-1",
+            "sender": "fixture-warning-desk (synthetic sender, not Hydromet)",
+            "status": "Actual",
+            "message_type": "Cancel",
+            "scope": "Public",
+            "event_code": "FIXTURE_STRONG_WIND",
+            "severity": "Moderate",
+            "urgency": "Past",
+            "certainty": "Observed",
+            "category": ["Met"],
+            "references": ["fixture-alert-0002"],
+            "parameters": {},
+            "sent_at": "2026-01-15T06:45:00Z",
+            "effective_at": null,
+            "onset_at": null,
+            "expires_at": "2030-01-01T00:00:00Z",
+            "headline": {
+                "tj": "Бекоркунии озмоишӣ: шамоли шадид (fixture)",
+                "ru": "Тестовая отмена: сильный ветер (fixture)",
+                "en": "Fixture cancellation: strong wind (fixture)"
+            },
+            "description": {
+                "tj": "Огоҳии қаблӣ бекор карда шуд. Маълумоти намунавӣ.",
+                "ru": "Предыдущее предупреждение отменено. Демонстрационные данные.",
+                "en": "The previous warning has been cancelled. Demonstration data."
+            },
+            "instruction": null,
+            "areas": [
+                {
+                    "description": {
+                        "tj": "Минтақаи озмоишии B (fixture)",
+                        "ru": "Тестовый регион B (fixture)",
+                        "en": "Fixture region B (fixture)"
+                    },
+                    "geocodes": [{ "name": "FIXTURE_REGION", "value": "FIXTURE-REGION-B" }],
+                    "geometry": null,
+                    "altitude_m": null,
+                    "ceiling_m": null
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Read-only: this workflow verifies the tree. It publishes no artifact,
+# package or deployment.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches docker/php/Dockerfile, so a green run means the runtime the VPS
+  # uses accepted the code.
+  PHP_VERSION: '8.5'
+  PHP_EXTENSIONS: bcmath, intl, pcntl, pdo_pgsql, pdo_sqlite, pgsql, sqlite3, zip
+
+jobs:
+  backend:
+    name: Backend — style, static analysis, SQLite suite
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json against composer.lock
+        run: composer validate --strict
+
+      - name: Prepare the application environment
+        run: cp .env.example .env
+
+      - name: Resolve the Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install PHP dependencies from the lock file
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Generate an ephemeral application key
+        run: php artisan key:generate
+
+      - name: Check code style
+        run: composer lint
+
+      - name: Run static analysis
+        run: composer analyse
+
+      - name: Run the backend suite on SQLite
+        run: composer test
+
+  backend-postgres:
+    name: Backend — full suite on PostgreSQL/PostGIS
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        # Same image as compose.yaml, so the CHECK constraints, triggers and
+        # PostGIS extension are exercised against the deployed engine.
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: hydromet_testing
+          POSTGRES_USER: hydromet
+          # Throwaway credential for a container reachable only from this job.
+          # It is deliberately not a secret and grants nothing outside the run.
+          POSTGRES_PASSWORD: hydromet_ci_only
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hydromet -d hydromet_testing"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # The suite runs on SQLite unless a run opts in explicitly. `composer
+      # test:pgsql` sets the same value; it is repeated here so the job states
+      # for itself which database it exercises.
+      HYDROMET_TEST_DB: pgsql
+      # The scratch database name is chosen by the bootstrap. Only the
+      # connection details come from here, exactly as they come from .env on a
+      # developer machine.
+      DB_HOST: 127.0.0.1
+      DB_PORT: '5432'
+      DB_USERNAME: hydromet
+      DB_PASSWORD: hydromet_ci_only
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Prepare the application environment
+        run: cp .env.example .env
+
+      - name: Resolve the Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-php${{ env.PHP_VERSION }}-
+
+      - name: Install PHP dependencies from the lock file
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Generate an ephemeral application key
+        run: php artisan key:generate
+
+      # --fail-on-skipped is the point of this job: the PostgreSQL-only
+      # guarantees must actually run, not report themselves as skipped.
+      - name: Run the backend suite on PostgreSQL with no skipped tests
+        run: composer test:pgsql
+
+  frontend:
+    name: Frontend — format, lint, types, tests, build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install Node dependencies from the lock file
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run types:check
+
+      - name: Run the frontend suite
+        run: npm test
+
+      - name: Build the production bundle
+        run: npm run build

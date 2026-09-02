@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Http\Controllers\Admin\AuditEventExportController;
+use App\Http\Middleware\PanelFramePolicy;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -17,6 +19,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -52,9 +55,23 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
+                // Filament renders inline scripts and evaluates Alpine expressions,
+                // so the panel pins its own policy instead of taking the
+                // public nonce policy that would leave it blank.
+                PanelFramePolicy::class,
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            /*
+             * Registered inside the panel rather than in routes/web.php so it
+             * inherits the panel session, CSRF and authentication middleware
+             * instead of restating them. The request class asserts the
+             * administrator ability on top of that.
+             */
+            ->authenticatedRoutes(function (): void {
+                Route::get('exports/audit-events.csv', AuditEventExportController::class)
+                    ->name('exports.audit-events');
+            });
     }
 }

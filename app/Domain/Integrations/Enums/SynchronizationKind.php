@@ -13,6 +13,7 @@ enum SynchronizationKind: string
 {
     case StationRegistry = 'station_registry';
     case Measurements = 'measurements';
+    case Alerts = 'alerts';
 
     public function label(): string
     {

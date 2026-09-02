@@ -10,6 +10,7 @@ services:
       - "${APP_HTTP_PORT:-8080}:80"
     volumes:
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/snippets:/etc/nginx/snippets:ro
       - ./public:/var/www/html/public:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/up || exit 1"]

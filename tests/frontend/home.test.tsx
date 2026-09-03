@@ -117,6 +117,19 @@ describe('home page warnings', () => {
         expect(screen.getAllByText(translation('alert_severity_severe')).length).toBeGreaterThan(0);
     });
 
+    /**
+     * The list is where a warning is opened. Without this the page can say what
+     * is in force but never what was issued, and the empty state's promise that
+     * withdrawn warnings stay reachable through the history has nowhere to lead.
+     */
+    it('opens each warning at its own address', () => {
+        render(<Home generatedAt="2026-08-31T06:05:00Z" stations={stations} alerts={alerts} />);
+
+        expect(
+            screen.getByRole('link', { name: 'Тестовое предупреждение: сильный дождь' }),
+        ).toHaveAttribute('href', '/alerts/fixture/fixture-alert-0001');
+    });
+
     it('labels demonstration warnings so they cannot be mistaken for official ones', () => {
         render(<Home generatedAt="2026-08-31T06:05:00Z" stations={stations} alerts={alerts} />);
 

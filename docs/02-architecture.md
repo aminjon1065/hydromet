@@ -90,6 +90,18 @@ Owns pollutant definitions, approved index schemes, breakpoints, categories and 
 
 Owns canonical CAP-compatible alerts, update/cancel resolution, validity, severity and affected geometries.
 
+Two public surfaces read it, and both go through the same query
+(`PublicAlertOverview`), so they cannot disagree about what is public. The
+overview at `/` lists what is in force and draws the areas. `GET
+/alerts/{source}/{identifier}` is one warning in full, at an address that can be
+shared — the pair, because a CAP identifier is unique within its sender rather
+than globally. That page deliberately serves a warning that is **no longer** in
+force: a link followed an hour later has to say that the warning expired or was
+superseded, and show the rest of the message chain, rather than answer `404` as
+though nothing had ever been issued. A message that is not `Actual` + `Public`
+is reported as missing on both surfaces, so neither can be used to learn what
+the other hides.
+
 ### Integrations
 
 Owns credentials, source configuration, cursors, retry policy, payload mapping and synchronization history. It writes business data only through the owning capability's import service.

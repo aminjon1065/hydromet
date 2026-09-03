@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import { AlertTriangle } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -57,7 +58,21 @@ export function AlertList({ alerts }: AlertListProps) {
                                     )}
                                 </CardDescription>
                                 <CardTitle className="text-base text-balance">
-                                    {alert.headline}
+                                    {/*
+                                     * The whole card is not the link: a card
+                                     * carries several distinct things — an area
+                                     * list, a time — and turning all of it into
+                                     * one target gives a screen reader a single
+                                     * link whose name is the entire card. The
+                                     * headline is what the page is about, so
+                                     * the headline is the link.
+                                     */}
+                                    <Link
+                                        className="underline-offset-4 hover:underline focus-visible:underline"
+                                        href={`/alerts/${alert.source}/${encodeURIComponent(alert.identifier)}`}
+                                    >
+                                        {alert.headline}
+                                    </Link>
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3 text-sm">

@@ -137,3 +137,31 @@ export interface PublicAlert {
     expiresAt: string;
     areas: PublicAlertArea[];
 }
+
+/**
+ * One warning on its own page, which carries what the list on the home page
+ * cannot: whether this message is still the current one, and if not, when it
+ * stopped being so.
+ */
+export interface PublicAlertDetail extends PublicAlert {
+    status: string;
+    messageType: string;
+    supersededAt: string | null;
+    isActive: boolean;
+}
+
+/**
+ * A link in the supersession chain — `Alert → Update → Update → Cancel`.
+ *
+ * Deliberately small: the history is a way to reach the other messages, not a
+ * second copy of them. Each entry is addressable at its own URL under the same
+ * source as the message being read.
+ */
+export interface PublicAlertHistoryEntry {
+    identifier: string;
+    messageType: string;
+    severity: AlertSeverity;
+    headline: string;
+    sentAt: string;
+    supersededAt: string | null;
+}

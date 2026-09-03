@@ -101,7 +101,11 @@ Forking `smartmet-alert-client` instead of the recommended Leaflet alert layer a
   the map layer and the read-only admin view exist. The remaining work is one
   adapter class once Hydromet names the source type;
 - Update/Cancel handling — **done**, including message history and the
-  supersession rules behind `ALERT-02` and `ALERT-03`;
+  supersession rules behind `ALERT-02` and `ALERT-03`. The public portal now
+  reaches that history too: `/alerts/{source}/{identifier}` serves one warning
+  at a shareable address, keeps an expired or superseded message readable with
+  the reason it is no longer in force, and lists the whole chain. What is still
+  demonstrated on a synthetic feed rather than accepted stays unchanged;
 - SILAM iframe — **done**;
 - approved AQI configuration and advice — **blocked**
   (`docs/08-hydromet-input-checklist.md`, section 4). Nothing is published.

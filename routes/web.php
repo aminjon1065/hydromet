@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AlertController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HomeController;
@@ -16,6 +17,18 @@ Route::get('/content/{slug}', ContentController::class)
     ->name('content.show');
 
 Route::get('/language/{locale}', LocaleController::class)->name('language.switch');
+
+/*
+ * One warning, addressed by the pair the storage layer keys on: a CAP
+ * identifier is unique within its sender, not globally. The segment
+ * constraints mirror `routes/api.php` exactly — both segments are
+ * provider-chosen text, so they are bounded here rather than trusted, and
+ * neither set admits `/`, which is what a traversal attempt would need.
+ */
+Route::get('/alerts/{source}/{identifier}', AlertController::class)
+    ->where('source', '[A-Za-z0-9._-]{1,32}')
+    ->where('identifier', '[A-Za-z0-9@._:+~-]{1,190}')
+    ->name('alerts.show');
 
 Route::get('/silam', SilamController::class)
     ->middleware(SilamFramePolicy::class)

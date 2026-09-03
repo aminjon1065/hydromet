@@ -241,6 +241,12 @@ weekly: an advisory appears without the code changing.
 | A supersession stamp is written once and never cleared or reassigned | Automated | `tests/Feature/Alerts/AlertHistoryImmutabilityTest.php` |
 | The whole `Alert → Update → Update → Cancel` chain is returned from any of its links | Automated | `tests/Feature/Alerts/AlertMessageChainTest.php` |
 | A warning from a non-fixture source is addressable, and the same identifier in two sources resolves separately | Automated | `tests/Feature/Api/AlertDetailContractTest.php` |
+| A warning is readable on the public web at its own shareable address, in all three languages | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
+| An expired or superseded warning stays readable and is marked as no longer in force, rather than answering `404` | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php`, `tests/frontend/alert-show.test.tsx` |
+| The whole message chain is reachable from the public page, from any of its links | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
+| A non-public message is reported as missing identically on the web page and the API | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
+| An address outside the allowed source/identifier shape never reaches the query | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
+| CAP urgency and certainty are translated rather than printed as English tokens | Automated | `tests/frontend/alert-show.test.tsx` |
 | The published list is ordered by CAP severity, not alphabetically | Automated | `tests/Feature/Api/AlertDetailContractTest.php` |
 | `<html lang>` follows an Inertia language switch | Automated | `tests/frontend/document-language.test.tsx` |
 | Audit export is administrator-only, language-neutral and formula-safe | Automated | `tests/Feature/Audit/AuditExportTest.php` |

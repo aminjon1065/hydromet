@@ -255,6 +255,9 @@ weekly: an advisory appears without the code changing.
 | An expired or superseded warning stays readable and is marked as no longer in force, rather than answering `404` | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php`, `tests/frontend/alert-show.test.tsx` |
 | The whole message chain is reachable from the public page, from any of its links | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
 | A non-public message is reported as missing identically on the web page and the API | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
+| `GET /api/v1/alerts/history` returns expired and withdrawn warnings, newest first, in the documented envelope | Automated | `tests/Feature/Api/AlertHistoryApiTest.php` |
+| The history endpoint and the web history page return the same identifiers, so neither reveals what the other hides | Automated | `tests/Feature/Api/AlertHistoryApiTest.php` |
+| The history endpoint pages by cursor, and refuses an oversized one in the API error envelope | Automated | `tests/Feature/Api/AlertHistoryApiTest.php` |
 | An address outside the allowed source/identifier shape never reaches the query | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
 | CAP urgency and certainty are translated rather than printed as English tokens | Automated | `tests/frontend/alert-show.test.tsx` |
 | The published list is ordered by CAP severity, not alphabetically | Automated | `tests/Feature/Api/AlertDetailContractTest.php` |

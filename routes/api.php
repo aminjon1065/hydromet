@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AlertHistoryController;
 use App\Http\Controllers\Api\V1\AlertIndexController;
 use App\Http\Controllers\Api\V1\AlertShowController;
 use App\Http\Controllers\Api\V1\ContentShowController;
@@ -22,6 +23,12 @@ Route::prefix('v1')
         // monitoring system must keep watching those instead of this.
         Route::get('/system/status', SystemStatusController::class)->name('api.v1.system.status');
         Route::get('/alerts', AlertIndexController::class)->name('api.v1.alerts.index');
+        // Declared before the detail route below so the two cannot be confused
+        // as the surface grows: this is one segment, that one is always two.
+        // Everything published, newest first, including warnings that have
+        // expired or been withdrawn — which `/alerts` deliberately omits.
+        Route::get('/alerts/history', AlertHistoryController::class)
+            ->name('api.v1.alerts.history');
         // The public identity of a warning is the pair (source, identifier): a
         // CAP identifier is unique within its sender, not globally, and the
         // list endpoint returns both fields so a client can build this URL.

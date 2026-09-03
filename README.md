@@ -156,8 +156,8 @@ fixture. AQI, SmartMet layers, real source adapters (MeteoAlert included),
 manual measurement correction, real-source scheduling, queue retries, approved
 staleness thresholds, and approved content and navigation are not implemented
 yet. The `/api/v1` metadata, station list/detail, bounded series, CSV,
-published-content, alert and system-status endpoints are implemented against
-canonical local read models.
+published-content, alert — in force, published history and detail — and
+system-status endpoints are implemented against canonical local read models.
 
 ### Selected versions
 

@@ -179,7 +179,8 @@ Returns canonical alert summaries and GeoJSON geometries. The default result
 contains only current `Actual` + `Public` alerts that have not been superseded,
 cancelled or expired, and whose validity window has started — a warning whose
 `effective_at ?? sent_at` is still in the future is scheduled, not in force, and
-is not returned.
+is not returned. `GET /api/v1/alerts/history` below returns the ones this
+endpoint drops.
 
 Ordering is severity first (`Extreme`, `Severe`, `Moderate`, `Minor`,
 `Unknown`), then `sent_at` descending, then `identifier` and finally the storage
@@ -193,6 +194,46 @@ Response: `{ "data": [ ... ], "meta": { "generated_at", "active_at", "severity_o
 `Cache-Control: public, max-age=60`, `Vary: Accept-Language`. `severity_order`
 is the CAP ranking and matches the order of `data` — the portal publishes no
 colour scale of its own, because none is approved.
+
+### `GET /api/v1/alerts/history`
+
+Implemented against synthetic fixtures.
+
+Everything the portal has published, newest first, **including warnings that
+have expired or been withdrawn** — which `/api/v1/alerts` deliberately omits.
+Without it a client could look back only by already knowing an identifier and
+asking for it by name, while the portal's own history page could list them all.
+
+The publication rule is the one every public surface shares: a message is
+returned when it is `Actual` and `Public`. That matters more here than anywhere
+else, because this is the endpoint that deliberately returns what is no longer
+current, so "it expired anyway" is not a reason to relax it. A test asserts this
+endpoint and the web history page return the same identifiers.
+
+Unfiltered, for the reasons already recorded above: `region` needs an agreed
+vocabulary, `from`/`to` need the feed's refresh semantics, and `include_test`
+is a publication decision Hydromet has not made.
+
+| Parameter | Status |
+| --- | --- |
+| `cursor` | Implemented. Opaque, from `meta.next_cursor`; a malformed value returns the first page and one over 2048 characters is refused with the standard error envelope. |
+
+Ordering is `sent_at` descending, then the storage key — stable and total, which
+is what lets a cursor resume at all. Paging is by cursor rather than offset
+because warnings arrive continuously and an offset would shift every later page
+each time one did, so a client walking back through the history would skip
+entries. A page holds 100 warnings, matching `GET /api/v1/stations`.
+
+Each entry carries `identifier`, `source`, `is_mock`, `message_type`,
+`severity`, `headline`, `sent_at`, `effective_at`, `expires_at`,
+`superseded_at`, `is_active` and `areas` — area names only. There is no
+geometry, description or instruction: the list draws no map and shows no body
+text, and a client that needs them asks for the one warning below.
+`superseded_at` together with `is_active` says what became of a warning a client
+stored earlier: still in force, simply expired, or replaced at a stated moment.
+
+Response: `{ "data": [ ... ], "meta": { "generated_at", "next_cursor" } }`,
+`Cache-Control: public, max-age=60`, `Vary: Accept-Language`.
 
 ### `GET /api/v1/alerts/{source}/{identifier}`
 

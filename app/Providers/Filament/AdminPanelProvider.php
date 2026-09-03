@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Http\Controllers\Admin\AuditEventExportController;
+use App\Http\Middleware\EnforceAccountSessionVersion;
 use App\Http\Middleware\PanelFramePolicy;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -62,6 +63,11 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
+                // After Authenticate, which is what resolves the user: a
+                // session opened before the account was deactivated, given a
+                // different role or given a new password is signed out here on
+                // its next request, whatever the session driver is.
+                EnforceAccountSessionVersion::class,
             ])
             /*
              * Registered inside the panel rather than in routes/web.php so it

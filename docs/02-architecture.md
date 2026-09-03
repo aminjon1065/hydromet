@@ -260,6 +260,104 @@ enforced there:
   the edge as the single source in this topology while the application keeps the
   guarantee for any other front end and makes it provable in the test suite.
 
+### 9.1a Account administration
+
+Accounts are created and changed only through
+`App\Domain\Identity\Services\UserAccountManager`. The Filament pages hand it
+the submitted fields and do nothing else, so normalisation, uniqueness,
+hashing, the audit write and every rule live in one place a second caller can
+find.
+
+Access: authenticated, active, `administrator`. The panel asks the service the
+same question it uses to authorize a write, so hiding a menu entry and refusing
+a request cannot drift apart — an operator or editor gets no navigation entry
+*and* a refusal at the URL.
+
+Two invariants protect the panel from locking everyone out:
+
+| Rule | Why |
+| --- | --- |
+| The last active administrator cannot be deactivated or demoted | It is the only remaining way in |
+| An administrator cannot deactivate themselves or change their own role | They would lose access mid-session; a colleague can do it |
+
+The last-administrator rule is evaluated first, so someone who is the only
+administrator is told that rather than being sent to look for a colleague who
+does not exist. It is transaction-safe: the active administrator rows are locked
+with `lockForUpdate` and re-counted inside the same transaction, so two
+concurrent demotions cannot each observe the other as the survivor. SQLite
+ignores the lock and relies on its single writer, so the rule holds on both.
+
+Deactivation, a role change and a password change all end the account's existing
+sessions, so a change of rights applies to the next request rather than to the
+next sign-in.
+
+They do it through a security stamp on the account (`users.session_version`),
+not by deleting rows from the `sessions` table. That table is only where
+sessions live on one driver; `.env.example` selects Redis, where the rows do not
+exist and where finding one account's sessions would mean scanning the keyspace
+of shared infrastructure. So the account carries a version instead:
+`App\Http\Middleware\EnforceAccountSessionVersion`, registered in the panel's
+authenticated middleware after `Authenticate`, stamps a session on its first
+authenticated request and compares the stamp against the stored column on every
+request after that. A session opened before the change carries the older number
+and is signed out — `logoutCurrentDevice`, the session invalidated, the CSRF
+token regenerated, and the person sent to `/admin/login` as unauthenticated.
+The stamp moves inside the same transaction as the change that requires it, so a
+rolled-back change does not sign anybody out; a rename or a corrected address
+does not move it.
+
+Nothing about the session store is assumed, so the behaviour is identical on
+Redis, the database, files and the array driver. **Nothing is deleted from any
+session store**, on any driver: no store is searched, scanned or flushed to find
+a session, and no `sessions` row is removed. The stale session can no longer be
+used to reach anything, so it is left to the driver's own lifetime and garbage
+collection. A cleanup write would also have to happen after the change had
+already committed, on a store this transaction does not own — so its only
+possible effect is an error shown for work that was in fact done. Session
+contents are never read or recorded, and the session stamp itself holds only the
+account id and the version — nothing that could authenticate as anybody.
+
+Filament's `AuthenticateSession` stays in the panel stack as the second line for
+a changed password hash. It cannot see a deactivation or a role change, which is
+what the stamp covers.
+
+**The first administrator** is created by `php artisan
+users:bootstrap-administrator`, the one path that writes a user without an
+administrator asking for it — because on an empty installation there is nobody
+to ask. It refuses the moment `users` holds a single row, prompts for the
+password hidden rather than accepting it as an option, applies the same password
+policy as the panel form, and writes the account and its `identity.user.created`
+event in one transaction with `actor_id` null. `UserAccountManager::create` is
+unchanged and still requires an active administrator; nothing routes to the
+bootstrap path, so it is unreachable over HTTP and from Filament.
+
+The "no account exists" condition is the one invariant in the portal that cannot
+be held by locking rows, because the point of it is that there are none. Two
+simultaneous runs would both read an empty table, and both would be right at the
+moment they read it. So the transaction serializes before it reads:
+
+| Driver | Lock | Why that one |
+| --- | --- | --- |
+| PostgreSQL | `pg_advisory_xact_lock` on a fixed constant | Not attached to a row, and released by the server on commit or rollback, so a crashed run cannot block the command forever |
+| SQLite | `pragma user_version` written back as itself | No advisory locks exist, and a deferred transaction holds nothing until it writes; a real write takes SQLite's single write lock, and writing the value back unchanged makes it a no-op |
+| Anything else | Refused | Running the one operation whose safety is the lock, without the lock, would look correct until the day two people ran it together |
+
+The identifier is a written-out constant, never derived. A number computed from
+a hash of a class name, a table name or an application key can change with a PHP
+build or a rename, and two processes then wait politely on two different locks.
+The existence check is made after the lock, so the second process asks its
+question once the first has committed and is refused.
+
+Accounts are never deleted, at three boundaries: no delete ability or route in
+Filament, a `LogicException` from the model, and a trigger in
+`2026_09_02_120013_add_user_account_guards` (plus a `TRUNCATE` guard and a role
+`CHECK` on PostgreSQL). The restrictive `audit_events.actor_id` foreign key
+remains behind all of it. Deactivation is the supported way to remove someone,
+and it keeps their audit history attributable.
+
+Nothing credential-shaped is readable through the panel or the audit log: no
+password, hash, confirmation, remember token, session payload or reset token.
+
 ### 9.2 Failure disclosure
 
 Every `/api/*` failure is rendered by `App\Http\Api\ApiErrorRenderer` into the

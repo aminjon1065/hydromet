@@ -127,6 +127,21 @@ Administrators can stream the immutable audit log as CSV from the panel. The
 file is language-neutral, its cells cannot be evaluated as spreadsheet formulas,
 and every export is itself recorded in the log.
 
+Account administration is implemented on the provisional three-role model:
+administrators create accounts, assign a role, activate or deactivate, and set a
+password, all through one audited domain service. The panel refuses to remove
+the last active administrator, and refuses to let an administrator deactivate or
+demote themselves. Accounts are deactivated, never deleted, so their audit
+history keeps its actor — enforced by the model and by a database trigger.
+Deactivating an account, changing its role or changing its password signs its
+existing sessions out on their very next request, through a security stamp on
+the account rather than by deleting session rows, so it works whichever session
+driver is configured. Passwords are stored hashed and never displayed, exported
+or written to the audit log. The first administrator is created by a one-time
+command on an empty installation. The final role matrix and the list of users are
+still awaited from Hydromet, the portal ships with no default administrator, and
+password-reset e-mail is blocked until SMTP is configured.
+
 `GET /api/v1/system/status` publishes whether the portal's copy of each enabled
 source is current: a source code, a state, the last successful import and the
 approved staleness threshold, and nothing about the internal configuration. It
@@ -262,14 +277,24 @@ docker compose exec app php artisan migrate:fresh    # rebuild the schema
 
 ### First administrator
 
-No account is seeded: a shared password must never exist in the repository.
+No account is seeded: a shared password must never exist in the repository, and
+there is no default administrator.
 
 ```bash
-docker compose exec app php artisan make:filament-user
+docker compose exec app php artisan users:bootstrap-administrator
 ```
 
-New accounts default to the `editor` role and `is_active = true`; change the
-role in the database until user management ships.
+The command asks for a name, an address and a password — typed hidden, never
+passed as an option, so it stays out of the shell history and the process list —
+applies the same password policy as the panel, creates one active
+`administrator` and records an `identity.user.created` event. It runs **only
+while the `users` table is completely empty** and refuses afterwards, so it
+cannot become a second way to add people.
+
+Every account after the first is created in the panel, under
+**Identity → User accounts**. Create a second administrator early: a sole
+administrator can no longer be deactivated or demoted by anyone, including
+themselves.
 
 ### Station registry fixture
 

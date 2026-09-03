@@ -4,6 +4,22 @@ includes:
 parameters:
     level: 8
 
+    # Keep the cache inside the project rather than in `%TEMP%/phpstan`, which
+    # every project on the machine shares.
+    #
+    # The cached DI container occasionally lands in a state where the analysis
+    # aborts before Larastan's bootstrap has run, with "Undefined constant
+    # Larastan\Larastan\LARAVEL_VERSION". Once that happens every run fails
+    # identically until the cache is emptied, and then every run passes again —
+    # observed several times, with the cause inside PHPStan/Larastan rather than
+    # here. Pinning the directory does not prevent it, but it makes the recovery
+    # a documented one-liner against a directory this project owns:
+    #
+    #     rm -rf .phpstan
+    #
+    # The directory is already in .gitignore.
+    tmpDir: .phpstan
+
     # Larastan boots the application from a bootstrap file to build its
     # reflection. Run in worker processes that boot raced each other and the
     # bootstrap intermittently failed, after which the analysis aborted with

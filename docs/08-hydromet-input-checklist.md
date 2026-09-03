@@ -103,7 +103,12 @@ still assumed, and what the portal does in the meantime.
       source is published as `unknown`, which is deliberately not the same
       as healthy. This is a separate question from the polling interval.
 - [ ] Production data access and privacy restrictions.
-- [ ] User list and approved role matrix.
+- [ ] User list and approved role matrix. Account administration is
+      implemented against the provisional three-role model and is ready to
+      receive the real one; no account exists until someone creates it, and
+      the portal ships with no default administrator.
+- [ ] Password policy, and how an initial password reaches a new user. The
+      portal sends no e-mail, so today it is handed over out of band.
 - [ ] Who may download the audit log, and where a downloaded copy may be stored.
       The export at `GET /admin/exports/audit-events.csv` is administrator-only
       and names administrators by e-mail, so the answer is a data-handling rule,

@@ -26,4 +26,14 @@ enum UserRole: string
     {
         return true;
     }
+
+    /**
+     * The stored values, in the order the panel lists them.
+     *
+     * @return list<string>
+     */
+    public static function values(): array
+    {
+        return array_column(self::cases(), 'value');
+    }
 }

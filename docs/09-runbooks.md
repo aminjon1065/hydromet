@@ -228,6 +228,91 @@ GET /admin/exports/audit-events.csv[?from=<ISO 8601>&to=<ISO 8601>]
 Treat a downloaded file as production data: it names administrators by e-mail
 and contains the before/after payload of every recorded change.
 
+## 8a. User accounts
+
+```text
+Administration → Identity → User accounts
+```
+
+Administrators only. Create an account with a name, an e-mail address, one of
+the three roles and an initial password, then pass that password to the person
+over a channel you trust — the portal sends no e-mail, and there is no
+self-service reset.
+
+What the panel will refuse, and why:
+
+| Refused | Reason |
+| --- | --- |
+| Deactivating or demoting the last active administrator | It is the only remaining way into the panel |
+| Deactivating yourself, or changing your own role | You would lose access mid-session; ask a colleague |
+| Deleting any account | Accounts are deactivated instead, so their audit history keeps its actor |
+
+### The first administrator
+
+**There is no default administrator, and no account is seeded.** The first one
+is created deliberately, on the server, by a command that works only while the
+`users` table is completely empty:
+
+```bash
+docker compose exec app php artisan users:bootstrap-administrator
+```
+
+It asks for a name, an address, a password and its confirmation. The password is
+typed hidden and cannot be passed as an option, so it never reaches the shell
+history or the process list; it must satisfy the same policy as the panel form
+(at least 12 characters, with letters and digits). The command creates one
+active `administrator`, records an `identity.user.created` event — with no actor,
+because the account being created is the first one there is — and does both in a
+single transaction, so a failure leaves no account behind.
+
+Run it once. It refuses if any account already exists, including the one it just
+made, and refuses before asking anything, so a password is never typed into a run
+that was going to be rejected. Every account after the first is created in the
+panel.
+
+If two people run it at the same moment on the same database, one of them waits
+for the other and is then refused: the command takes a database lock before it
+checks whether the table is empty, so two simultaneous runs produce one
+administrator, never two.
+
+Create a second administrator early. With one, that account can no longer be
+deactivated or demoted by anyone, including itself.
+
+### When someone's access changes
+
+Deactivating an account, changing its role or changing its password ends the
+sessions that account already has: the next page the person opens takes them to
+`/admin/login`, rather than the change waiting for their next sign-in.
+
+It works like this, and it is worth knowing because the mechanism is not what
+you might expect: the account carries a version number, each session records the
+version it was opened against, and every authenticated request compares the two.
+A session opened before the change carries the older number and is signed out on
+the spot. Nothing is deleted from the session store to make this happen, and no
+session store is searched — which is what makes it work identically on Redis
+(the configured default), the database, files and in memory.
+
+Three consequences to expect:
+
+- The change lands on the person's next request, not the same instant. There is
+  no active push to an open browser tab.
+- Letting someone back in does not restore the sessions they had before: the
+  version only moves forward, so a reactivated account has to sign in again.
+- The revoked session's stored data stays in the session store until the
+  driver's own lifetime expires it (`SESSION_LIFETIME`, and the driver's garbage
+  collection). That is expected: it cannot be used to reach anything, and the
+  portal deliberately does not reach into the session store to tidy it.
+
+Every account change is written to the audit log
+(`identity.user.created`, `identity.user.updated`,
+`identity.user.credentials_changed`). A password change is recorded as having
+happened and nothing more: no password, hash, confirmation, token or session
+content is ever stored there.
+
+**REQUIRES OWNER INPUT**: the approved role matrix and the list of people who
+should hold each role (`docs/08-hydromet-input-checklist.md`, section 6), and
+SMTP if password-reset e-mail is wanted.
+
 ## 9. Health checks
 
 | Endpoint | Meaning |

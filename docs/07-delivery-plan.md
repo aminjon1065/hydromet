@@ -116,6 +116,13 @@ Option B figure, because only the reading edge is left.
 - roles and audit — **done for the capabilities that exist**: the provisional
   least-privilege matrix, the append-only audit log with database-level mutation
   guards, and an administrator-only streamed CSV export of it;
+- user administration — **done on the provisional matrix**: create, view, edit,
+  role assignment, activation and password change, all through one domain
+  service, audited, with the last-administrator and self-management invariants
+  and no deletion path. The final role matrix and the list of people who should
+  hold each role are still **blocked**
+  (`docs/08-hydromet-input-checklist.md`, section 6), as is password-reset
+  e-mail, which needs SMTP;
 - measurement correction workflow — **blocked**
   (`docs/08-hydromet-input-checklist.md`, section 3): who may correct a value,
   and the mandatory reason vocabulary, are not decided;

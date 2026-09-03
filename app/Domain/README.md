@@ -89,6 +89,56 @@ self-supersession, and any later change to a stamp already set are all refused,
 identically on PostgreSQL and SQLite. Areas are write-once outright. See
 `docs/03-data-contracts.md` section 7.2.
 
+## User accounts
+
+`UserAccountManager` is the only writer of `users`. It normalises the name and
+e-mail, checks uniqueness, hashes the password through the model's cast, applies
+role and activation changes, records the audit event and moves the account's
+security stamp — all inside one transaction, so a failed audit write takes the
+account change and the revocation with it.
+
+Sessions end through that stamp (`users.session_version`), not by deleting rows
+from the `sessions` table: `.env.example` selects the Redis session driver,
+where those rows do not exist and where finding one account's sessions would
+mean scanning the keyspace. `EnforceAccountSessionVersion`, in the panel's
+authenticated middleware, stamps a session on its first authenticated request
+and compares it against the stored column on every one after that, so a session
+opened before a deactivation, a role change or a password change is signed out
+on its next request — on any session driver. Nothing is deleted from any
+session store: the stale session can no longer reach anything, so it is left to
+the driver's own lifetime and garbage collection.
+
+The first administrator is the one account this service does not create for an
+administrator, because on an empty installation there is none. `handle` in
+`users:bootstrap-administrator` calls `bootstrapFirstAdministrator`, which
+refuses the moment any account exists and is reachable from nowhere else.
+
+That refusal needs a lock no row can provide, since the condition it protects is
+that there are no rows. The transaction therefore serializes first and reads
+after: a PostgreSQL transaction-scoped advisory lock on a fixed constant, or on
+SQLite a no-op write that upgrades the deferred transaction to SQLite's write
+lock. A driver offering neither is refused before the transaction opens rather
+than run unprotected.
+
+Filament calls into it rather than saving the model itself. Every rule is
+re-checked there, because hiding a button is a courtesy and the check behind it
+is the control: only an authenticated, active administrator may manage accounts,
+and the resource asks the service the same question.
+
+Two invariants keep the panel reachable: the last active administrator cannot be
+deactivated or demoted, and an administrator cannot deactivate themselves or
+change their own role. The first is checked before the second, so the only
+administrator left is told the useful thing. The active administrator rows are
+locked with `lockForUpdate` and re-counted inside the transaction, so two
+concurrent demotions cannot both believe the other survives.
+
+Three audit actions exist: `identity.user.created`, `identity.user.updated` and
+`identity.user.credentials_changed`. The last is deliberately valueless — that a
+password changed is evidence, what it changed to is a credential.
+
+Accounts are deactivated, never deleted. See `docs/03-data-contracts.md`,
+section 9a.
+
 ## Shared canonical utilities
 
 `App\Support\Canonical` holds the pieces every import needs and no capability

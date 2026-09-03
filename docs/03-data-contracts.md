@@ -414,6 +414,42 @@ Current implementation details:
 - bodies are stored and rendered as plain text, never trusted HTML;
 - no fallback publication policy is enabled before Hydromet approves one.
 
+## 9a. User account contract
+
+```text
+name, email, role, is_active
+```
+
+`role` is one of `administrator`, `operator`, `editor` — constrained by a
+PostgreSQL `CHECK` from
+`2026_09_02_120013_add_user_account_guards`. That migration refuses to run if
+the table already holds a role the portal does not define: it names the
+offending values and stops, rather than rewriting or deleting account rows to
+make itself applicable.
+
+`email` is stored lower-case and trimmed, and is the account's public label in
+the audit log. `password` is stored hashed and is never read back, pre-filled,
+exported or audited.
+
+`session_version` is an internal security stamp added by the same migration:
+`unsigned bigint`, not null, default `1`. It is not part of the contract above
+and is not a field anyone sets — no form, API response, audit payload or
+serialized model carries it, and it is absent from the model's fillable
+attributes and listed among its hidden ones. Deactivating an account, changing
+its role or changing its password increments it inside the same transaction as
+the change; a rename or a corrected address does not. Its absolute value means
+nothing, only that it moved: see `docs/02-architecture.md`, section 9.1a, for
+how a session carrying an older value is signed out.
+
+Accounts are deactivated, never deleted; see `docs/02-architecture.md`,
+section 9.1a.
+
+This is the **provisional** least-privilege model of
+`docs/01-product-scope.md`. Hydromet has approved neither the final role matrix
+nor the list of people who should hold each role
+(`docs/08-hydromet-input-checklist.md`, section 6), so no account created today
+is a production user.
+
 ## 10. Administrative audit contract
 
 Sensitive administrative changes append an immutable event:

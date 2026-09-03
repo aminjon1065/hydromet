@@ -315,7 +315,11 @@ Administrative routes are session-authenticated and policy-protected. Exact Fila
 
 Required operations:
 
-- manage users, roles and permissions;
+- manage users, roles and permissions (implemented: create, view, edit,
+  assign one of the three provisional roles, activate and deactivate, and
+  set a password. Administrators only, in the panel; there is deliberately
+  no `/api/v1` endpoint for accounts and no self-registration. Accounts are
+  deactivated, never deleted);
 - view and retry synchronization runs;
 - view rejected import rows without exposing credentials;
 - manage source field and unit mappings;

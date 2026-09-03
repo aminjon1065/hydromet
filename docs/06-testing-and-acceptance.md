@@ -204,6 +204,27 @@ no artefact and deploys nothing.
 | No panel page reachable by a guest or a deactivated user, swept over the registered routes | Automated | `tests/Feature/Security/PanelAuthorizationTest.php` |
 | No `/api` route behind a session guard | Automated | `tests/Feature/Security/PanelAuthorizationTest.php` |
 | Per-resource role matrix | Automated | `tests/Feature/*AdminResource*Test.php` |
+| Only an active administrator may manage accounts, at the URL as well as in the menu | Automated | `tests/Feature/Identity/UserAdminResourceTest.php` |
+| An administrator cannot deactivate themselves or change their own role | Automated | `tests/Feature/Identity/UserAccountManagerTest.php` |
+| The last active administrator cannot be deactivated or demoted | Automated | `tests/Feature/Identity/UserAccountManagerTest.php` |
+| Deactivation, a role change and a password change move the account's security stamp; a rename or a corrected address does not | Automated | `tests/Feature/Identity/UserAccountManagerTest.php` |
+| A failing audit write rolls the security stamp back with the change | Automated | `tests/Feature/Identity/UserAccountManagerTest.php` |
+| A signed-in person is sent to `/admin/login` on their next request after a role change, a password change or a deactivation, over a real sign-in and a page open to both roles | Automated | `tests/Feature/Identity/SessionRevocationTest.php` |
+| The same sign-out on the `array`, `file` and `database` session drivers, with the session read back through its cookie | Automated | `tests/Feature/Identity/SessionRevocationTest.php` |
+| A rename or a new address leaves the session working, and a bystander's session is untouched | Automated | `tests/Feature/Identity/SessionRevocationTest.php` |
+| The session stamp holds only an account id and a version — no password, hash or token | Automated | `tests/Feature/Identity/SessionRevocationTest.php` |
+| A deactivated user cannot open the next admin page | Automated | `tests/Feature/Identity/UserAdminFormTest.php` |
+| The first administrator is created only on an empty `users` table, active, hashed, normalized and audited with no actor | Automated | `tests/Feature/Identity/BootstrapAdministratorCommandTest.php` |
+| A second bootstrap run is refused before asking anything and changes nothing | Automated | `tests/Feature/Identity/BootstrapAdministratorCommandTest.php` |
+| The bootstrap holds a lock for its whole transaction, the lock is transaction-scoped, and a competing run waits and is then refused | Automated, PostgreSQL | `tests/Feature/Identity/BootstrapSerializationTest.php` |
+| The SQLite lock statement really takes SQLite's write lock and changes nothing | Automated, both drivers | `tests/Feature/Identity/BootstrapSerializationTest.php` |
+| The lock identifier is a fixed constant, not a derived value | Automated | `tests/Feature/Identity/BootstrapSerializationTest.php` |
+| A database the bootstrap cannot serialize is refused instead of run unprotected | Automated | `tests/Feature/Identity/BootstrapSerializationTest.php` |
+| The bootstrap command applies the panel's password policy, and a failing audit write rolls the account back | Automated | `tests/Feature/Identity/BootstrapAdministratorCommandTest.php` |
+| Account changes are audited, and no credential reaches the audit payload | Automated | `tests/Feature/Identity/UserAccountManagerTest.php` |
+| A failing audit write rolls the account change back | Automated | `tests/Feature/Identity/UserAccountManagerTest.php` |
+| Accounts cannot be deleted through the model, a raw statement, `TRUNCATE` or any Filament route | Automated | `tests/Feature/Identity/UserAdminResourceTest.php` |
+| PostgreSQL refuses a role outside the portal vocabulary | Automated | `tests/Feature/Identity/UserAdminResourceTest.php` |
 | `/api/v1/system/status` state machine, including the threshold boundary, tied run timestamps and a running import not erasing the last result | Automated, both drivers | `tests/Feature/Api/SystemStatusApiTest.php` |
 | The status response exposes no base URL, producer, authentication type, counters or error text | Automated | `tests/Feature/Api/SystemStatusApiTest.php` |
 | The status query cost does not grow with the number of sources | Automated | `tests/Feature/Api/SystemStatusApiTest.php` |
@@ -243,6 +264,12 @@ And nginx, not PHPUnit, is what actually emits the static headers in the Compose
 topology; the application sets them too so the guarantee is provable here and
 survives a different front end. The CSP is the exception — it carries a
 per-request nonce, so only the application can send it.
+
+Account administration is exercised against invented accounts. A fixture or
+test account is never a production user: Hydromet has supplied no user list
+and approved no role matrix, and the portal ships with no default
+administrator. Password delivery and password-reset e-mail are out of scope
+until SMTP is configured, so an initial password is handed over out of band.
 
 `/api/v1/system/status` is exercised against synthetic sources only. A fixture
 run finishing on time proves the state machine, not a production service level:

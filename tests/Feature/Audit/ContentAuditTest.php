@@ -164,8 +164,38 @@ class ContentAuditTest extends TestCase
         $editor = User::factory()->create(['role' => UserRole::Editor]);
         ContentItem::factory()->create(['created_by' => $editor->id]);
 
-        $this->expectException(QueryException::class);
+        // The account guard now answers first, and answers for every account
+        // rather than only for those that happen to be referenced.
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('never deleted');
 
         $editor->delete();
+    }
+
+    /**
+     * The restrictive foreign key is still there behind the account guard.
+     *
+     * It protects a narrower case — an actor that something references — and
+     * the guard protects every account, including one added and removed before
+     * it ever acted. Both are asserted so removing either is a visible change.
+     */
+    #[Test]
+    public function the_audit_actor_key_still_refuses_to_lose_its_actor(): void
+    {
+        $editor = User::factory()->create(['role' => UserRole::Editor]);
+        ContentItem::factory()->create(['created_by' => $editor->id]);
+
+        $this->assertSame(1, AuditEvent::query()->where('actor_id', $editor->id)->count());
+
+        try {
+            DB::transaction(static function () use ($editor): void {
+                DB::table('users')->where('id', $editor->id)->delete();
+            });
+            $this->fail('The database accepted the deletion of an audit actor.');
+        } catch (QueryException) {
+        }
+
+        $this->assertDatabaseHas('users', ['id' => $editor->id]);
+        $this->assertSame(1, AuditEvent::query()->where('actor_id', $editor->id)->count());
     }
 }

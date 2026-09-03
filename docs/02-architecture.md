@@ -206,7 +206,33 @@ handler, which never reach group middleware. It sends:
 | `X-Frame-Options` | `SAMEORIGIN` |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` |
 | `X-Permitted-Cross-Domain-Policies` | `none` |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Cross-Origin-Resource-Policy` | `same-origin` |
+| `Permissions-Policy` | every powerful feature denied — see below |
 | `Content-Security-Policy` | the policy for the surface, unless the route pinned its own |
+
+**Powerful browser features** are all denied, because the portal uses none of
+them: there is no geolocation, media capture, payment or sensor reading anywhere
+in the bundle. There is no "deny everything" form — a feature absent from the
+header is allowed — so the eighteen are listed explicitly and built from one
+array, and a feature the portal starts using has to be removed from that list
+deliberately. The denial reaches framed content too, which is the point: without
+it, an injected script or the framed SILAM page could prompt a visitor for their
+location or their camera under this portal's name, and an official government
+site is where such a prompt would be believed. Verified in Chrome:
+`getCurrentPosition()` is refused outright with "Geolocation has been disabled in
+this document by permission", rather than showing a prompt.
+
+**`Cross-Origin-Embedder-Policy` is deliberately absent.** `require-corp`
+refuses every cross-origin subresource that does not opt in, and neither of the
+portal's two external dependencies does. Measured on 2026-09-03: the
+OpenStreetMap tile server answers with `Access-Control-Allow-Origin: *` but no
+`Cross-Origin-Resource-Policy`, and Leaflet requests tiles as plain `<img>`
+elements with no `crossorigin` attribute, so every tile would be blocked; the
+SILAM page sends no CORP either, so the forecast iframe would go with it. The
+portal runs no `SharedArrayBuffer` and needs no high-resolution timers, so the
+header would cost two working features and buy nothing. `window.crossOriginIsolated`
+is therefore `false`, and that is the intended state.
 
 The policy is composed once, in `App\Http\Security\ContentSecurityPolicy`, from
 a baseline that is safe everywhere:
@@ -332,6 +358,14 @@ enforced there:
   therefore hides the application's copies with `fastcgi_hide_header`, leaving
   the edge as the single source in this topology while the application keeps the
   guarantee for any other front end and makes it provable in the test suite.
+
+That arrangement has one failure mode worth naming: because the application's
+header is the one being hidden, a value added in PHP and forgotten in the
+snippet would leave the deployed edge sending the weaker policy, and no test
+exercising the application could notice. `SecurityHeadersTest` therefore reads
+the two nginx files directly and asserts that each static header is both sent
+and hidden, and that the edge's `Permissions-Policy` is byte-identical to the
+one the middleware builds.
 
 ### 9.1a Account administration
 

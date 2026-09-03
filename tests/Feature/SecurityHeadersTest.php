@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Security\ContentSecurityPolicy;
 use App\Http\Security\EmbedOrigin;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,7 +29,198 @@ class SecurityHeadersTest extends TestCase
             'legacy framing' => ['X-Frame-Options', 'SAMEORIGIN'],
             'referrer' => ['Referrer-Policy', 'strict-origin-when-cross-origin'],
             'cross domain policies' => ['X-Permitted-Cross-Domain-Policies', 'none'],
+            'popup isolation' => ['Cross-Origin-Opener-Policy', 'same-origin'],
+            'resource embedding' => ['Cross-Origin-Resource-Policy', 'same-origin'],
         ];
+    }
+
+    // --- Powerful browser features ---------------------------------------
+
+    /**
+     * The portal uses none of these, so every one is denied outright.
+     *
+     * An empty allowlist — `camera=()` — refuses the feature to the page and to
+     * anything it frames, including the SILAM embed. That matters more than it
+     * looks: without the header, an injected script or a framed third party can
+     * prompt a visitor for their location or their camera under this portal's
+     * name, and an official government site is exactly where such a prompt
+     * would be believed.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function deniedFeatures(): array
+    {
+        return [
+            'camera' => ['camera'],
+            'microphone' => ['microphone'],
+            'geolocation' => ['geolocation'],
+            'display capture' => ['display-capture'],
+            'payment' => ['payment'],
+            'usb' => ['usb'],
+            'midi' => ['midi'],
+            'serial' => ['serial'],
+            'bluetooth' => ['bluetooth'],
+            'hid' => ['hid'],
+            'accelerometer' => ['accelerometer'],
+            'gyroscope' => ['gyroscope'],
+            'magnetometer' => ['magnetometer'],
+            'autoplay' => ['autoplay'],
+            'fullscreen' => ['fullscreen'],
+            'screen wake lock' => ['screen-wake-lock'],
+            'web authentication' => ['publickey-credentials-get'],
+            'topics tracking' => ['browsing-topics'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('deniedFeatures')]
+    public function every_powerful_feature_is_denied_on_a_public_page(string $feature): void
+    {
+        $this->assertStringContainsString(
+            $feature.'=()',
+            (string) $this->get('/')->assertOk()->headers->get('Permissions-Policy'),
+        );
+    }
+
+    #[Test]
+    #[DataProvider('deniedFeatures')]
+    public function every_powerful_feature_is_denied_on_the_panel(string $feature): void
+    {
+        $this->assertStringContainsString(
+            $feature.'=()',
+            (string) $this->get('/admin/login')->headers->get('Permissions-Policy'),
+        );
+    }
+
+    /**
+     * Nothing may be quietly allowed. A feature the portal starts using has to
+     * be removed from the deny list deliberately, and this fails until it is.
+     */
+    #[Test]
+    public function the_feature_policy_allows_nothing(): void
+    {
+        $policy = (string) $this->get('/')->assertOk()->headers->get('Permissions-Policy');
+
+        $this->assertNotSame('', $policy);
+        $this->assertStringNotContainsString('*', $policy);
+        $this->assertStringNotContainsString('self', $policy);
+    }
+
+    // --- Cross-origin isolation ------------------------------------------
+
+    /**
+     * `Cross-Origin-Embedder-Policy` is deliberately absent, and this records
+     * why so nobody adds it expecting an improvement.
+     *
+     * `require-corp` refuses every cross-origin subresource that does not opt
+     * in. Measured on 2026-09-03: the OpenStreetMap tile server answers with
+     * `Access-Control-Allow-Origin: *` but **no** `Cross-Origin-Resource-Policy`,
+     * and Leaflet requests tiles as plain `<img>` elements with no `crossorigin`
+     * attribute, so every tile would be blocked. The SILAM page sends no CORP
+     * either, so the forecast iframe would go with it. The header would trade a
+     * working map and a working forecast for an isolation the portal has no use
+     * for — it runs no `SharedArrayBuffer` and needs no high-resolution timers.
+     */
+    #[Test]
+    public function the_embedder_policy_is_not_set(): void
+    {
+        foreach (['/', '/silam', '/admin/login'] as $uri) {
+            $this->assertNull(
+                $this->get($uri)->headers->get('Cross-Origin-Embedder-Policy'),
+                "[{$uri}] sends COEP, which would block the map tiles and the SILAM iframe.",
+            );
+        }
+    }
+
+    /**
+     * The one external link opens in a new tab. `same-origin` severs the opener
+     * relationship, so the FMI page cannot reach back into this one through
+     * `window.opener` even if the link's own `rel` were lost in an edit.
+     */
+    #[Test]
+    public function the_silam_page_still_isolates_its_popup(): void
+    {
+        $this->get('/silam')
+            ->assertOk()
+            ->assertHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    }
+
+    // --- The edge and the application agree ------------------------------
+
+    /**
+     * nginx sends the static headers too, and hides the application's copies so
+     * a client never receives one twice. That only holds while the two say the
+     * same thing: a feature added to the middleware and forgotten in the
+     * snippet would leave the deployed edge sending the weaker policy, and
+     * nothing in the application would notice, because the application's own
+     * header is the one being hidden.
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function headersNginxAlsoSends(): array
+    {
+        return [
+            'nosniff' => ['X-Content-Type-Options', 'nosniff'],
+            'legacy framing' => ['X-Frame-Options', 'SAMEORIGIN'],
+            'referrer' => ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+            'cross domain policies' => ['X-Permitted-Cross-Domain-Policies', 'none'],
+            'popup isolation' => ['Cross-Origin-Opener-Policy', 'same-origin'],
+            'resource embedding' => ['Cross-Origin-Resource-Policy', 'same-origin'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('headersNginxAlsoSends')]
+    public function the_edge_sends_and_hides_each_static_header(string $header, string $value): void
+    {
+        $this->assertStringContainsString(
+            'add_header '.$header.' "'.$value.'" always;',
+            $this->nginxSnippet(),
+            "nginx does not send [{$header}].",
+        );
+
+        $this->assertStringContainsString(
+            'fastcgi_hide_header '.$header.';',
+            $this->nginxSite(),
+            "nginx does not hide the application's [{$header}], so a client would receive it twice.",
+        );
+    }
+
+    #[Test]
+    public function the_edge_denies_exactly_the_features_the_application_denies(): void
+    {
+        $this->assertStringContainsString(
+            'add_header Permissions-Policy "'.SecurityHeaders::permissionsPolicy().'" always;',
+            $this->nginxSnippet(),
+            'The nginx feature policy has drifted from the application one.',
+        );
+
+        $this->assertStringContainsString(
+            'fastcgi_hide_header Permissions-Policy;',
+            $this->nginxSite(),
+        );
+    }
+
+    /**
+     * The header nobody may add at the edge either.
+     */
+    #[Test]
+    public function the_edge_does_not_send_an_embedder_policy(): void
+    {
+        $this->assertStringNotContainsString(
+            'add_header Cross-Origin-Embedder-Policy',
+            $this->nginxSnippet(),
+        );
+    }
+
+    private function nginxSnippet(): string
+    {
+        return (string) file_get_contents(base_path('docker/nginx/snippets/security-headers.conf'));
+    }
+
+    private function nginxSite(): string
+    {
+        return (string) file_get_contents(base_path('docker/nginx/default.conf'));
     }
 
     #[Test]

@@ -149,6 +149,13 @@ Option B figure, because only the reading edge is left.
   inline style attributes Leaflet sets, and that directive is CSP Level 3, so a
   browser without it would render no map. Turning it on needs a decision about
   which browsers the portal must support, and verification in each;
+- browser feature and cross-origin headers — **done**: `Permissions-Policy`
+  denies all eighteen powerful features the portal does not use, and
+  `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` are set to
+  `same-origin`. `Cross-Origin-Embedder-Policy` is deliberately absent, with the
+  measurement that justifies it recorded in `docs/02-architecture.md`, section
+  9.1. Verified in a browser: a geolocation request is refused outright, while
+  the map, the SILAM iframe and the panel are unaffected;
 - CSP fetch directives — **done**: the policy had named only `script-src` and
   `style-src`, which left `connect-src`, `img-src`, `font-src`, `media-src`,
   `worker-src` and `manifest-src` unrestricted on every surface. `default-src

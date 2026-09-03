@@ -249,6 +249,7 @@ weekly: an advisory appears without the code changing.
 | CAP urgency and certainty are translated rather than printed as English tokens | Automated | `tests/frontend/alert-show.test.tsx` |
 | The published list is ordered by CAP severity, not alphabetically | Automated | `tests/Feature/Api/AlertDetailContractTest.php` |
 | `<html lang>` follows an Inertia language switch | Automated | `tests/frontend/document-language.test.tsx` |
+| Tajik pages render Tajik dates on a browser with no `tg` locale data, byte-identical to ICU's own `tg-TJ` output | Automated | `tests/frontend/datetime.test.ts` |
 | Audit export is administrator-only, language-neutral and formula-safe | Automated | `tests/Feature/Audit/AuditExportTest.php` |
 | Exception message and trace never reach the synchronization journal or the log | Automated | `tests/Feature/Integrations/SynchronizationRunnerTest.php` |
 | Dependency audit thresholds cannot be loosened silently | Automated | `tests/Feature/Security/DependencyAuditPolicyTest.php` |

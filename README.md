@@ -588,6 +588,13 @@ internal `tj` key is mapped to the standards-based `tg-TJ` tag only at external
 boundaries (HTML `lang`, `Content-Language`, later CAP). Timestamps are stored
 in UTC and displayed in `Asia/Dushanbe` (`APP_DISPLAY_TIMEZONE`).
 
+Browsers do not all carry Tajik locale data — Chrome 152 has none, and
+`Intl.DateTimeFormat('tg-TJ')` silently resolves to `en-US` there, which used to
+print `Jan 15, 2026, 11:30 AM` on Tajik pages. `resources/js/lib/datetime.ts`
+detects that once at load and composes CLDR's `tg` format itself, taking the
+calendar and timezone arithmetic from a locale every runtime has. A runtime that
+does carry the data keeps using it, so the fallback retires itself.
+
 ### Production deployment
 
 **`compose.yaml` is for local development only and must not be used as-is on

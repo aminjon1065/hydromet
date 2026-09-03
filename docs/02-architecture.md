@@ -212,11 +212,33 @@ The policy is composed once, in `App\Http\Security\ContentSecurityPolicy`, from
 a baseline that is safe everywhere:
 
 ```
-base-uri 'self'; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; object-src 'none'
+base-uri 'self'; connect-src 'self'; default-src 'self'; font-src 'self';
+form-action 'self'; frame-ancestors 'self'; frame-src 'none';
+img-src 'self' data: https://*.tile.openstreetmap.org; object-src 'none'
 ```
 
 Directives are emitted in alphabetical order, so the header does not depend on
 the order a caller composed it in.
+
+`default-src` is the directive that makes the rest of the policy mean what it
+looks like. CSP restricts only what it names, so a policy that states
+`script-src` and `style-src` and stops there leaves `connect-src`, `img-src`,
+`font-src`, `media-src`, `worker-src` and `manifest-src` **unrestricted** — and
+those are the channels that turn a scripting bug into a data breach: `fetch()`
+to any host, or an `<img>` whose URL carries the stolen value. Closing them
+matters most on the panel, where the `'unsafe-inline'` concession below makes an
+injected script likelier to run in the first place, so the fetch directives are
+closed on every surface rather than only the public one.
+
+The map is the portal's single legitimate third-party origin, so `img-src` names
+it instead of opening `https:` wholesale; `data:` is there because Leaflet
+builds its marker shadow and zoom glyphs as data URIs. The origin lives in
+`config/security.php` and has to agree with the tile URL the map component
+requests — a policy naming one host while the map asks for another produces a
+blank map and nothing else notices, so a test asserts the two still match.
+Fonts, including the panel's Inter, are self-hosted, and the built bundle
+creates no workers and no `blob:` URLs, so the `default-src` fallback costs
+nothing.
 
 **Public pages** add a per-request nonce:
 
@@ -268,9 +290,34 @@ expression with `new AsyncFunction`. Serving the panel the public policy was
 tried: the login page rendered unstyled and non-functional, with 21 `EvalError`
 exceptions from Livewire's evaluator. The concession therefore applies only to
 authenticated panel routes, while the public portal — the surface an anonymous
-visitor can reach — keeps the nonce. Removing it means either publishing and
-patching Filament's Blade views or waiting for upstream nonce support; it is
-recorded as an open item in `docs/07-delivery-plan.md`.
+visitor can reach — keeps the nonce.
+
+#### What closing it would actually take
+
+Measured against the installed versions on 2026-09-03, so the decision rests on
+facts rather than on hope:
+
+| Fact | Measured |
+| --- | --- |
+| `'unsafe-eval'` is required by | Alpine's expression evaluator, bundled **inside `livewire/livewire` 4.4.2** — 7 `AsyncFunction` occurrences in `dist/livewire.js` |
+| `'unsafe-inline'` is required by | Filament 5.7.6 Blade views: 7 render inline `<script>`, and 19 use `x-data` attributes |
+| Nonce support in Filament 5.7.6 | **None** — zero occurrences of `nonce` anywhere in `filament/*/src` |
+| Nonce support in Livewire 4.4.2 | **Present** — `FrontendAssets::nonce()` stamps the scripts and styles Livewire itself injects |
+
+So the two halves have different prices:
+
+| Option | What it buys | Cost and risk |
+| --- | --- | --- |
+| **Do nothing** | — | The concession stays, contained to authenticated panel routes. The fetch directives above now limit what an injected script could do with it |
+| Remove `'unsafe-inline'` only | An injected inline `<script>` in the panel stops running | Requires publishing Filament's Blade views and adding a nonce to every inline block — a fork of the view layer, re-checked on every Filament upgrade. Livewire's own tags need no work |
+| Remove `'unsafe-eval'` too | Alpine expressions can no longer be evaluated from strings | Needs Alpine's CSP build, which does **not** support inline `x-data="{…}"` expressions — the form Filament uses throughout. Not a configuration change: it is a rewrite of Filament's client layer |
+| Wait for upstream | Both, at no local cost | Not scheduled. Depends on Filament adding nonce support and on Alpine's CSP build becoming usable for Filament's own components |
+
+The recommendation is to keep the concession and revisit when Filament ships
+nonce support, because the two removal options buy a panel that only signed-in
+staff can reach at the price of a permanent fork of a dependency's view layer.
+That is a judgement, not a decision: it is recorded as an open item in
+`docs/07-delivery-plan.md` and is the owner's to make.
 
 `docker/nginx/default.conf` sends the same static headers at the edge, from
 `docker/nginx/snippets/security-headers.conf`. Two details matter and are

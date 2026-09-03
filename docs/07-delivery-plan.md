@@ -149,11 +149,22 @@ Option B figure, because only the reading edge is left.
   inline style attributes Leaflet sets, and that directive is CSP Level 3, so a
   browser without it would render no map. Turning it on needs a decision about
   which browsers the portal must support, and verification in each;
-- CSP for the administration panel — **outstanding**, not blocked by Hydromet.
-  Filament renders inline scripts with no nonce support and Alpine evaluates
-  expressions with `new AsyncFunction`, so the panel runs on `'unsafe-inline'
-  'unsafe-eval'`. Closing it means publishing and patching Filament's Blade
-  views, or upstream nonce support;
+- CSP fetch directives — **done**: the policy had named only `script-src` and
+  `style-src`, which left `connect-src`, `img-src`, `font-src`, `media-src`,
+  `worker-src` and `manifest-src` unrestricted on every surface. `default-src
+  'self'` now closes them, with `img-src` naming the map tile origin and nothing
+  else. Verified in a browser: an injected `fetch()` and an `<img>` to a foreign
+  host are both refused, while the map, fonts, charts and the Filament panel are
+  unaffected (`docs/02-architecture.md`, section 9.1);
+- CSP for the administration panel — **outstanding, with the options now
+  costed**, and not blocked by Hydromet. The panel still runs on
+  `'unsafe-inline' 'unsafe-eval'`: `'unsafe-eval'` is required by Alpine's
+  evaluator inside Livewire 4.4.2, and `'unsafe-inline'` by Filament 5.7.6,
+  which has no nonce support at all. Both removal paths mean forking a
+  dependency's view layer and re-checking it on every upgrade. The measured
+  facts and the four options are in `docs/02-architecture.md`, section 9.1; the
+  recommendation is to keep the concession and revisit when Filament ships nonce
+  support, but the decision is the owner's;
 - dependency vulnerability scanning — **done**: `composer security`,
   `npm run audit:production` and `npm run audit:all` audit the locked trees, and
   `.github/workflows/dependency-security.yml` runs them on pull requests, on

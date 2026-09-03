@@ -25,8 +25,25 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Map tile origin
+    |--------------------------------------------------------------------------
+    |
+    | The one third-party origin the portal loads images from. `img-src` names
+    | it explicitly instead of opening the directive to `https:`, so a page can
+    | still draw the station map and nothing else can smuggle data out through
+    | an image URL.
+    |
+    | It must match the tile URL requested in
+    | `resources/js/components/station-map.tsx`. A wildcard covers the `{s}`
+    | subdomain rotation Leaflet performs (`a.`, `b.`, `c.`).
+    |
+    */
+
     'csp' => [
         'style_nonce' => (bool) env('CSP_STYLE_NONCE', false),
+        'map_tile_origin' => env('CSP_MAP_TILE_ORIGIN', 'https://*.tile.openstreetmap.org'),
     ],
 
 ];

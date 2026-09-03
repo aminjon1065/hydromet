@@ -14,8 +14,9 @@ class SecurityHeadersTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const BASELINE = "base-uri 'self'; form-action 'self'; frame-ancestors 'self'; "
-        ."frame-src 'none'; object-src 'none'";
+    private const BASELINE = "base-uri 'self'; connect-src 'self'; default-src 'self'; "
+        ."font-src 'self'; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; "
+        ."img-src 'self' data: https://*.tile.openstreetmap.org; object-src 'none'";
 
     /**
      * @return array<string, array{string, string}>
@@ -226,6 +227,93 @@ class SecurityHeadersTest extends TestCase
         foreach (["base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'", "object-src 'none'"] as $directive) {
             $this->assertStringContainsString($directive, $policy);
         }
+    }
+
+    // --- Fetch directives ------------------------------------------------
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function surfaces(): array
+    {
+        return [
+            'the public portal' => ['/'],
+            'the administration panel' => ['/admin/login'],
+            'a JSON endpoint' => ['/api/v1/metadata'],
+        ];
+    }
+
+    /**
+     * A policy that names no `default-src` restricts only what it lists.
+     *
+     * That is how this one used to read: `script-src` and `style-src` were
+     * stated, and `connect-src`, `img-src`, `font-src`, `media-src`,
+     * `worker-src` and `manifest-src` were left unrestricted — so an injected
+     * script could still `fetch()` anywhere, which is the channel that turns a
+     * scripting bug into a data breach. The panel's `unsafe-inline` concession
+     * makes this worse there, not better, which is exactly why it is closed on
+     * every surface rather than only the public one.
+     */
+    #[Test]
+    #[DataProvider('surfaces')]
+    public function every_surface_closes_the_fetch_directives(string $uri): void
+    {
+        $policy = $this->policyFor($uri);
+
+        $this->assertStringContainsString("default-src 'self'", $policy);
+        $this->assertStringContainsString("connect-src 'self'", $policy);
+        $this->assertStringContainsString("font-src 'self'", $policy);
+    }
+
+    /**
+     * The map is the portal's one legitimate third-party image source. It is
+     * named, so an image URL cannot be used to carry data to an arbitrary host,
+     * and `https:` as a whole is never opened.
+     */
+    #[Test]
+    #[DataProvider('surfaces')]
+    public function images_come_from_this_host_the_tile_server_or_a_data_uri(string $uri): void
+    {
+        $policy = $this->policyFor($uri);
+
+        $this->assertStringContainsString(
+            "img-src 'self' data: ".config('security.csp.map_tile_origin'),
+            $policy,
+        );
+        $this->assertStringNotContainsString('img-src https:;', $policy);
+    }
+
+    /**
+     * The policy and the map have to agree about the tile host: a policy naming
+     * one and a map requesting another produces a blank map, and nothing else
+     * would notice. Asserted against the component itself rather than against a
+     * second copy of the hostname.
+     */
+    #[Test]
+    public function the_configured_tile_origin_matches_the_url_the_map_requests(): void
+    {
+        $origin = (string) config('security.csp.map_tile_origin');
+        $component = (string) file_get_contents(base_path('resources/js/components/station-map.tsx'));
+
+        if (preg_match('#url="https://\{s\}\.([^/"]+)/#', $component, $matches) !== 1) {
+            $this->fail('The station map no longer requests tiles in the expected shape.');
+        }
+
+        $this->assertSame('https://*.'.$matches[1], $origin);
+    }
+
+    /**
+     * An unusable configuration must close the directive rather than open it.
+     */
+    #[Test]
+    public function an_empty_tile_origin_leaves_images_same_origin_only(): void
+    {
+        config(['security.csp.map_tile_origin' => '']);
+
+        $this->assertStringContainsString(
+            "img-src 'self' data: 'none'",
+            (string) ContentSecurityPolicy::baseline(),
+        );
     }
 
     // --- Policy object ---------------------------------------------------

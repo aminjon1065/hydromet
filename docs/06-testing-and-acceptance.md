@@ -197,6 +197,9 @@ weekly: an advisory appears without the code changing.
 | --- | --- | --- |
 | Response security headers | Automated | `tests/Feature/SecurityHeadersTest.php` |
 | Baseline CSP, including on error and unmatched-route responses | Automated | `tests/Feature/SecurityHeadersTest.php` |
+| Every surface closes the fetch directives (`default-src`, `connect-src`, `font-src`), so an injected script cannot call out | Automated | `tests/Feature/SecurityHeadersTest.php` |
+| Images come only from this host, a `data:` URI or the named tile origin — never `https:` wholesale | Automated | `tests/Feature/SecurityHeadersTest.php` |
+| The configured tile origin still matches the URL the map component requests | Automated | `tests/Feature/SecurityHeadersTest.php` |
 | Per-request `script-src` nonce on public pages, never repeated between responses | Automated | `tests/Feature/SecurityHeadersTest.php` |
 | The nonce in the header is the one Vite stamps on the page's tags | Automated | `tests/Feature/SecurityHeadersTest.php` |
 | The panel's inline/eval concession never reaches a public response | Automated | `tests/Feature/SecurityHeadersTest.php` |

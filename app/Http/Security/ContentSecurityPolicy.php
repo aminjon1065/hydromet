@@ -31,11 +31,46 @@ final class ContentSecurityPolicy implements Stringable
     {
         return new self([
             'base-uri' => "'self'",
+            // Closes every fetch directive not named below. Without it, CSP
+            // restricts only what it mentions: `connect-src`, `img-src`,
+            // `font-src`, `media-src`, `worker-src` and `manifest-src` were all
+            // unrestricted, which left the two channels an injected script
+            // actually needs — `fetch()` to anywhere, and an `<img>` whose URL
+            // carries the stolen data — wide open while the policy looked
+            // strict.
+            'default-src' => "'self'",
+            // Same-origin only: Inertia, Livewire and the read API are all
+            // served by this host, so nothing legitimate calls out.
+            'connect-src' => "'self'",
+            // Fonts are bundled by Vite from `@fontsource-variable/geist`, so
+            // they are same-origin files; no font CDN is contacted.
+            'font-src' => "'self'",
             'form-action' => "'self'",
             'frame-ancestors' => "'self'",
             'frame-src' => "'none'",
+            // `data:` is required by Leaflet, which builds its marker shadow
+            // and zoom-control glyphs as data URIs rather than fetching files.
+            // The map tile host is the portal's one legitimate third-party
+            // image source and is named rather than opened to `https:`.
+            'img-src' => "'self' data: ".self::mapTileOrigin(),
             'object-src' => "'none'",
         ]);
+    }
+
+    /**
+     * The origin the station map fetches its tiles from.
+     *
+     * Configured rather than written in here, because it has to agree with the
+     * URL `resources/js/components/station-map.tsx` requests — a policy naming
+     * one host while the map asks another produces a blank map, and the two
+     * would drift silently. `tests/Feature/SecurityHeadersTest.php` asserts
+     * they still match.
+     */
+    private static function mapTileOrigin(): string
+    {
+        $origin = config('security.csp.map_tile_origin');
+
+        return is_string($origin) && $origin !== '' ? $origin : "'none'";
     }
 
     /**

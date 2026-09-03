@@ -175,9 +175,13 @@ composer test:pgsql    # PostgreSQL/PostGIS, no skipped tests
 pull request. It installs from `composer.lock` and `package-lock.json`, publishes
 no artefact and deploys nothing.
 
+`.github/workflows/dependency-security.yml` is a separate workflow for the
+dependency audits, described in section 6.2. It is separate because it also runs
+weekly: an advisory appears without the code changing.
+
 ## 6. Security verification
 
-- dependency vulnerability scan for PHP and JavaScript packages;
+- dependency vulnerability scan for PHP and JavaScript packages — see 6.2;
 - static analysis and code style checks;
 - OWASP-oriented dynamic scan of the deployed test environment;
 - authorization tests for every administrative action;
@@ -241,7 +245,9 @@ no artefact and deploys nothing.
 | `<html lang>` follows an Inertia language switch | Automated | `tests/frontend/document-language.test.tsx` |
 | Audit export is administrator-only, language-neutral and formula-safe | Automated | `tests/Feature/Audit/AuditExportTest.php` |
 | Exception message and trace never reach the synchronization journal or the log | Automated | `tests/Feature/Integrations/SynchronizationRunnerTest.php` |
-| Dependency vulnerability scan | Not implemented | needs a decision on the scanner and its release gate |
+| Dependency audit thresholds cannot be loosened silently | Automated | `tests/Feature/Security/DependencyAuditPolicyTest.php` |
+| The dependency workflow is read-only and never repairs or suppresses a finding | Automated | `tests/Feature/Security/DependencyAuditPolicyTest.php` |
+| Dependency vulnerability scan | Implemented, provisional policy | section 6.2 below; the release gate is still an owner decision |
 | OWASP-oriented dynamic scan | Blocked | needs a deployed test environment, which does not exist yet |
 | Backup encryption and access review | Blocked | needs the backup destination in `docs/09-runbooks.md`, section 5 |
 
@@ -284,6 +290,84 @@ charts; the language dropdown, whose scroll lock injects a `<style>` element at
 runtime; and Inertia's navigation progress bar. Zero `securitypolicyviolation`
 events in Chrome, with `CSP_STYLE_NONCE` both off and on. Firefox and Safari
 have not been checked, which is why the style nonce ships off by default.
+
+### 6.2 Dependency scanning
+
+Dependencies are audited from the lock files, so what is judged is the tree that
+is actually deployed rather than whatever a fresh resolution would pick today.
+
+| Ecosystem | Scope | Fails on | Command | CI trigger |
+| --- | --- | --- | --- | --- |
+| PHP | Whole locked tree | Any advisory; any abandoned package | `composer security` (`composer audit --locked --abandoned=fail`) | Pull request, push to `master`, weekly schedule, manual |
+| npm | Runtime dependencies | `moderate`, `high`, `critical` | `npm run audit:production` (`npm audit --omit=dev --audit-level=moderate`) | Pull request, push to `master`, weekly schedule, manual |
+| npm | Runtime and development | `high`, `critical` | `npm run audit:all` (`npm audit --audit-level=high`) | Pull request, push to `master`, weekly schedule, manual |
+| Both | Dependencies a pull request **adds**, in every scope: `runtime`, `development`, `unknown` | `moderate` and above | `actions/dependency-review-action@v4` | Pull request only |
+| PHP | Manifest against lock file | Any drift | `composer validate --strict` | Pull request, push to `master`, weekly schedule, manual |
+
+The two kinds of check answer different questions and neither replaces the
+other. The lockfile audits ask whether anything in the tree is known to be
+vulnerable **today** — an answer that changes without a line of this repository
+changing, which is why they also run on a schedule. Dependency Review asks
+whether a pull request is **adding** something that should not be added, and
+sees licence and provenance information an audit does not look at.
+
+Its settings are all stated in the workflow rather than inherited, because the
+defaults are weaker than this policy in one place that matters:
+
+| Setting | Value | Why it is written down |
+| --- | --- | --- |
+| `fail-on-severity` | `moderate` | Matches the npm production threshold |
+| `fail-on-scopes` | `runtime, development, unknown` | **The action's own default is `runtime` alone.** A vulnerable build tool still runs on developer machines and in CI, where it can read the source and reach whatever those machines reach; and an `unknown` scope is not a safe dependency, it is an unclassified one |
+| `vulnerability-check` | `true` | The point of the job, named so that turning it off has to be deliberate |
+| `warn-only` | `false` | A warning nobody must act on is not a gate |
+| `comment-summary-in-pr` | `never` | A comment needs `pull-requests: write`, which this workflow does not have |
+
+`allow-ghsas` and `config-file` are deliberately absent: the first is an
+advisory allowlist, the second would move the policy into a file the contract
+test cannot see. **There is no allowlist and no exception today**, in either
+the action or `composer.json`, and
+`tests/Feature/Security/DependencyAuditPolicyTest.php` fails if one appears.
+
+Acceptance criteria for this item:
+
+- `composer security`, `npm run audit:production` and `npm run audit:all` exist
+  as named commands in the manifests, and CI runs those same names, so a local
+  pass and a CI pass mean the same thing;
+- each command exits non-zero at its documented threshold;
+- the audits run without installing either dependency tree;
+- `.github/workflows/dependency-security.yml` holds `contents: read` and no
+  write permission, uses no secret, publishes no artefact and writes no
+  pull-request comment;
+- Dependency Review blocks `moderate` and above in all three scopes, with the
+  vulnerability check on and `warn-only` off;
+- no script or workflow runs `npm audit fix`, `composer update`, or any
+  advisory suppression;
+- there is no ignore list and no allowlist, in the manifests or in the action;
+- the thresholds are asserted by
+  `tests/Feature/Security/DependencyAuditPolicyTest.php`, so loosening one fails
+  the suite rather than passing quietly. It compares each audit command exactly
+  after collapsing whitespace, and reads the workflow with comments stripped, so
+  neither an appended `|| true` nor a directive that only appears in a comment
+  can satisfy it. It also fails on `continue-on-error`, `warn-only: true`,
+  `allow-ghsas`, `config-file`, `--ignore-severity`, `--ignore-unreachable`,
+  `--no-dev`, `--audit-level=none` and a `config.audit.ignore` block in
+  `composer.json`.
+
+State on 2026-09-03: `composer audit --locked --abandoned=fail`, `npm audit
+--omit=dev --audit-level=moderate` and `npm audit --audit-level=high` each
+report zero findings, and there are no abandoned packages.
+
+**Still to be confirmed on GitHub.** Everything above has been run locally and
+its configuration is asserted by an automated test, but no run of
+`dependency-security.yml` has executed on GitHub yet. Dependency Review in
+particular depends on the repository's dependency graph being enabled, which
+cannot be verified from a working copy. Until the first remote run, treat the
+workflow as configured-but-unobserved.
+
+The severities themselves are a **provisional** policy, chosen to be safe rather
+than convenient. Whether a dependency scan gates a release, and at what
+severity, is an owner decision that is still open
+(`docs/08-hydromet-input-checklist.md`, section 6).
 
 ## 7. Definition of done
 

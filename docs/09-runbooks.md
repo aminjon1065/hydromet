@@ -313,6 +313,75 @@ content is ever stored there.
 should hold each role (`docs/08-hydromet-input-checklist.md`, section 6), and
 SMTP if password-reset e-mail is wanted.
 
+## 8b. A dependency audit failed
+
+```bash
+composer security         # locked PHP tree: any advisory or abandoned package
+npm run audit:production  # runtime JS: moderate and above
+npm run audit:all         # runtime and dev JS: high and above
+```
+
+The same commands run in `.github/workflows/dependency-security.yml`, on every
+pull request and push to `master`, weekly, and on demand. A weekly failure on a
+branch nobody touched is normal and expected: advisories are published against
+code that has not changed.
+
+A pull request is additionally checked by `actions/dependency-review-action`,
+which blocks a dependency it **adds** at `moderate` and above in every scope —
+`runtime`, `development` and `unknown` — with the vulnerability check on and
+`warn-only` off. Its finding is triaged the same way as an audit finding, with
+one difference: the dependency is not in the tree yet, so the cheapest fix is
+usually to choose a different version, or a different package, before merging.
+
+Nothing repairs itself. There is no `npm audit fix` and no `composer update`
+anywhere in the scripts or the workflow, because both rewrite a lock file
+without anyone reading the result. Work through it instead:
+
+1. **Read the finding.** Note the package, the advisory ID (`GHSA-…`, `CVE-…`),
+   the severity and the vulnerable version range. The audit output names all
+   four.
+2. **Direct or transitive?** `composer why <package>` and `npm ls <package>`
+   answer it. A direct dependency is yours to update. A transitive one is
+   usually fixed by updating the package that pulls it in — which is a different
+   change, with different risk.
+3. **Runtime or development?** A development-only package cannot be reached by a
+   request, so it is a smaller problem — but not a non-problem: it runs on
+   developer machines and in CI, where it can see source and credentials.
+4. **Find the smallest safe version.** The advisory states the first fixed
+   release. Prefer the nearest patch that clears it over the newest release
+   available.
+5. **Read the release notes** for everything between the current and the target
+   version, and judge the regression risk before touching a lock file. A
+   semver-major jump to clear a moderate advisory in a development tool is
+   usually the wrong trade; say so rather than doing it quietly.
+6. **Update deliberately**, one concern at a time — `composer update
+   vendor/package --with-dependencies`, or `npm install package@version` — never
+   a blanket update, and never `npm audit fix --force`, which will install a
+   semver-major release to silence a warning.
+7. **Re-run the whole gate**, not only the audit: `composer check`, `composer
+   test:pgsql`, `npm run format:check`, `npm run lint`, `npm run types:check`,
+   `npm test`, `npm run build`. A dependency bump is a code change.
+8. **Commit the lock file with the reason.** The commit message should name the
+   advisory, so the next person can see why the version moved.
+
+If no safe version exists yet, that is a decision for the owner, not a threshold
+to lower. Record what is exposed, whether the vulnerable code path is reachable
+from this portal, and what compensating measure applies in the meantime.
+
+**Exceptions.** An advisory may be excluded only on an explicit owner decision,
+never to make a build green. The record must carry the advisory ID, the reason,
+the compensating measures, the person who approved it and an expiry date, and it
+must be reviewed on that date. **There are no exceptions today**: no
+`config.audit.ignore` in `composer.json`, no `allow-ghsas` on the review action,
+no ignore list anywhere — which is itself asserted by
+`tests/Feature/Security/DependencyAuditPolicyTest.php`, along with the rest of
+the policy.
+
+**REQUIRES OWNER INPUT**: whether a finding blocks a release or only a merge, at
+which severity, and who may approve an exception
+(`docs/08-hydromet-input-checklist.md`, section 6). The thresholds in use today
+are provisional.
+
 ## 9. Health checks
 
 | Endpoint | Meaning |

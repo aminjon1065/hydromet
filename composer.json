@@ -93,6 +93,9 @@
         "analyse": [
             "@php vendor/bin/phpstan analyse --memory-limit=1G"
         ],
+        "security": [
+            "@composer audit --locked --abandoned=fail"
+        ],
         "check": [
             "@lint",
             "@analyse",

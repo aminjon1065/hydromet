@@ -119,7 +119,23 @@ still assumed, and what the portal does in the meantime.
 - [ ] Production API rate-limit budget. The current `120/minute` is a
       development placeholder chosen without traffic figures.
 - [ ] Whether a dependency vulnerability scan must gate a release, and which
-      scanner is acceptable on the VPS owner's infrastructure.
+      scanner is acceptable on the VPS owner's infrastructure. Scanning itself
+      is implemented and running (`docs/06-testing-and-acceptance.md`, section
+      6.2), so what is still open is the organisational rule, not the tooling.
+      Until it is approved, this **provisional** policy applies, chosen to be
+      safe rather than convenient:
+
+      | Scope | Blocks on |
+      | --- | --- |
+      | PHP, whole locked tree | Any advisory, and any abandoned package |
+      | npm, runtime dependencies | `moderate`, `high`, `critical` |
+      | npm, runtime and development | `high`, `critical` |
+      | Dependencies a pull request adds, in every scope — `runtime`, `development`, `unknown` | `moderate` and above |
+
+      An approval should state whether these severities are right, whether a
+      finding blocks a release or only a merge, who may grant an exception and
+      for how long. There are no exceptions today, and the audits use no ignore
+      list.
 
 ## 7. Contract/addendum confirmations
 

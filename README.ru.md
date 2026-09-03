@@ -288,6 +288,58 @@ docker compose exec postgres psql -U hydromet -d postgres \
 PostgreSQL/PostGIS без пропущенных тестов и frontend (format, lint, types,
 тесты, production-сборка). Артефакты не публикуются, деплой не выполняется.
 
+### Аудит зависимостей
+
+```bash
+composer security         # весь locked PHP-дерево: любая advisory и abandoned пакет блокируют
+npm run audit:production  # runtime-зависимости JS: moderate и выше блокирует
+npm run audit:all         # runtime и dev JS: high и выше блокирует
+npm run security          # оба npm-аудита подряд
+```
+
+| Экосистема | Область | Блокирует | Почему |
+| --- | --- | --- | --- |
+| PHP | Всё locked-дерево (`composer.lock`) | Любая advisory и любой abandoned-пакет | Backend обслуживает каждый запрос, а для заброшенного пакета advisory просто некому выпустить |
+| npm | Только runtime-зависимости | `moderate`, `high`, `critical` | Они попадают в браузер или в обработку запроса |
+| npm | Runtime и development | `high`, `critical` | Dev-дерево должно лишь корректно собирать и тестировать |
+
+Аудиты читают `composer.lock` и `package-lock.json`, то есть проверяют именно
+то дерево, которое разворачивается, и не требуют установленных зависимостей.
+Они только сообщают: ни один script и ни один workflow не выполняет
+`npm audit fix` или `composer update`. Разбор падения — вручную, процедура в
+[`docs/09-runbooks.md`](docs/09-runbooks.md), раздел 8b.
+
+На 2026-09-03 все три проверки дали ноль находок.
+
+Пороги — **предварительная** политика, выбранная в пользу безопасности, а не
+удобства. Должен ли аудит блокировать релиз и с какого уровня — решение
+владельца
+([`docs/08-hydromet-input-checklist.md`](docs/08-hydromet-input-checklist.md),
+раздел 6).
+
+Отдельный `.github/workflows/dependency-security.yml` выполняет те же команды на
+pull request, push в `master`, по расписанию (понедельник, 04:17 **UTC** —
+GitHub всегда считает cron в UTC) и по ручному запуску, а на pull request
+дополнительно `actions/dependency-review-action@v4`. Прав у workflow только
+`contents: read`, секреты не используются, комментарии в PR не публикуются,
+зависимости не устанавливаются.
+
+Все параметры Dependency Review заданы явно, потому что по умолчанию у action
+`fail-on-scopes` включает только `runtime`: используются `fail-on-severity:
+moderate`, `fail-on-scopes: runtime, development, unknown`,
+`vulnerability-check: true` и `warn-only: false`. То есть `moderate` и выше
+блокирует добавление уязвимых зависимостей во всех scopes — runtime,
+development и unknown. Allowlist и исключений нет — ни в action, ни в
+`composer.json`. Подробности — в
+[`docs/06-testing-and-acceptance.md`](docs/06-testing-and-acceptance.md),
+раздел 6.2.
+
+> **На GitHub ещё не запускался.** Конфигурация закреплена тестом
+> `tests/Feature/Security/DependencyAuditPolicyTest.php`, команды проверены
+> локально, но ни одного запуска на GitHub пока не было. Dependency Review
+> дополнительно требует включённого dependency graph репозитория — до первого
+> удалённого запуска считайте эту задачу непроверенной.
+
 Языковые ключи приложения — `tj`, `ru`, `en`, запасной — `ru`. Внутренний ключ
 `tj` приводится к стандартному тегу `tg-TJ` только на внешних границах (HTML
 `lang`, `Content-Language`, в дальнейшем CAP). Метки времени хранятся в UTC и

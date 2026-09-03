@@ -479,6 +479,36 @@ npm run format:check # Prettier, check only
 npm run build        # production asset bundle
 ```
 
+### Dependency audit
+
+```bash
+composer security         # locked PHP tree: any advisory or abandoned package fails
+npm run audit:production  # runtime JS dependencies: moderate and above fails
+npm run audit:all         # runtime and development JS: high and above fails
+npm run security          # both npm audits, in that order
+```
+
+| Ecosystem | Scope | Fails on | Why |
+| --- | --- | --- | --- |
+| PHP | Whole locked tree (`composer.lock`) | Any advisory, and any abandoned package | The backend serves every request; an unmaintained package will not be issued an advisory when it needs one |
+| npm | Runtime dependencies only | `moderate`, `high`, `critical` | These reach a browser or a request |
+| npm | Runtime and development | `high`, `critical` | The development tree only has to build and test soundly |
+
+The audits read `composer.lock` and `package-lock.json`, so they judge the tree
+that is actually deployed — not whatever a fresh resolution would pick — and
+neither needs the dependencies installed. Both are read-only: nothing here
+updates a lock file, and there is deliberately no `npm audit fix` and no
+`composer update` in any script or workflow. A failure is triaged by hand; the
+procedure is in [`docs/09-runbooks.md`](docs/09-runbooks.md), section 8b.
+
+On 2026-09-03 all three reported zero findings.
+
+These thresholds are a **provisional** policy chosen to be safe rather than
+convenient. Whether a dependency scan must gate a release, and at which
+severity, is still an owner decision
+([`docs/08-hydromet-input-checklist.md`](docs/08-hydromet-input-checklist.md),
+section 6).
+
 ### Continuous integration
 
 `.github/workflows/ci.yml` runs on every push to `master` and every pull
@@ -494,6 +524,34 @@ It installs from `composer.lock` and `package-lock.json`, uses the PHP version
 in `docker/php/Dockerfile` and the Node version in `.nvmrc`, and publishes no
 artefact and no deployment. The commands are the ones above, so a green pipeline
 and a green local run mean the same thing.
+
+`.github/workflows/dependency-security.yml` is separate, because it answers a
+question whose answer changes without the code changing: it also runs weekly, on
+a cron GitHub evaluates in **UTC**, and can be started by hand.
+
+| Job | Checks | Runs on |
+| --- | --- | --- |
+| Locked dependencies | `composer validate --strict`, `composer security`, `npm run audit:production`, `npm run audit:all` | Pull requests, pushes to `master`, Mondays 04:17 UTC, manual dispatch |
+| Dependency review | `actions/dependency-review-action@v4`, blocking `moderate` and above in every scope — `runtime`, `development`, `unknown` | Pull requests only |
+
+It holds `contents: read` and nothing more, uses no secret, writes no pull-request
+comment and installs neither dependency tree — the audits read the lock files.
+The two halves are complementary: the audits judge the whole tree as it stands,
+the review judges what a pull request proposes to add.
+
+Every Dependency Review setting is stated rather than inherited, because the
+action's default `fail-on-scopes` is `runtime` alone: it runs with
+`fail-on-scopes: runtime, development, unknown`, `vulnerability-check: true` and
+`warn-only: false`. There is no allowlist and no exception, here or in
+`composer.json`. Full rationale in
+[`docs/06-testing-and-acceptance.md`](docs/06-testing-and-acceptance.md),
+section 6.2.
+
+> **Not yet observed on GitHub.** The workflow's configuration is asserted by
+> `tests/Feature/Security/DependencyAuditPolicyTest.php` and its commands have
+> been run locally, but no run has executed on GitHub yet. In particular
+> Dependency Review needs the repository's dependency graph enabled; until the
+> first remote run, treat that job as unverified.
 
 ### Stop
 

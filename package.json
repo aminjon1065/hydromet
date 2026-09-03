@@ -11,7 +11,10 @@
         "format:check": "prettier --check resources/js resources/css tests/frontend vite.config.ts vitest.config.ts eslint.config.js",
         "types:check": "tsc --noEmit",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "audit:production": "npm audit --omit=dev --audit-level=moderate",
+        "audit:all": "npm audit --audit-level=high",
+        "security": "npm run audit:production && npm run audit:all"
     },
     "devDependencies": {
         "@eslint/js": "^10.0.1",

@@ -1,0 +1,117 @@
+name: Dependency security
+
+# Kept apart from ci.yml on purpose. This workflow answers a different question
+# — "is anything we depend on known to be vulnerable today?" — and its answer
+# can change without a single line of this repository changing, which is why it
+# also runs on a schedule rather than only on a push.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    # 04:17 on Mondays. GitHub cron is always UTC, never the repository's or the
+    # runner's local time, so this is 09:17 in Asia/Dushanbe — early enough that
+    # a new advisory is waiting at the start of the working week. The offset
+    # minute keeps the run off the top of the hour, when scheduled jobs queue.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+# Read-only. This workflow reports; it never opens a pull request, writes a
+# comment, pushes a fix or publishes an artefact.
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Matches ci.yml and docker/php/Dockerfile.
+  PHP_VERSION: '8.5'
+
+jobs:
+  locked-dependencies:
+    name: Locked dependencies — PHP and npm advisories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+          tools: composer:v2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # Neither audit needs the dependencies installed: `composer audit
+      # --locked` reads composer.lock and `npm audit` reads package-lock.json.
+      # Installing would add minutes and, worse, would let a resolution that
+      # differs from the lock file be the thing that gets audited.
+
+      - name: Validate composer.json against composer.lock
+        run: composer validate --strict
+
+      # Every advisory fails the run, and so does an abandoned package: a
+      # package nobody maintains will not be issued an advisory when it needs
+      # one. Same command as `composer security` locally.
+      - name: Audit the locked PHP dependency tree
+        run: composer security
+
+      # Production dependencies are the ones that reach a browser or a request,
+      # so they are held to the stricter threshold.
+      - name: Audit npm production dependencies (moderate and above)
+        run: npm run audit:production
+
+      # The development tree only has to be sound enough to build and test with,
+      # so it blocks on high and critical.
+      - name: Audit the full npm dependency tree (high and above)
+        run: npm run audit:all
+
+  dependency-review:
+    name: Dependency review — dependencies this pull request adds
+    # Only on a pull request: the action compares a base ref with a head ref,
+    # and there is no base to compare against on a push or a schedule.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # This complements the lockfile audits rather than replacing them: they
+      # judge the whole tree as it stands today, this judges what a pull request
+      # is proposing to add, including licence and provenance information an
+      # audit does not look at.
+      - name: Review the dependency changes in this pull request
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          # Every scope, stated explicitly. The action's own default is
+          # `runtime` alone, which would have quietly left development and
+          # unknown-scope dependencies outside a gate the documentation says
+          # covers all of them. A build tool with a known vulnerability still
+          # runs on developer machines and in CI, where it can see the source
+          # and whatever those machines can reach; `unknown` is included
+          # because an unclassified dependency is not a safe one, it is one
+          # nobody has classified.
+          fail-on-scopes: runtime, development, unknown
+          # The vulnerability check is the point of the job; named rather than
+          # inherited so turning it off has to be a deliberate edit.
+          vulnerability-check: true
+          # A warning nobody has to act on is not a gate.
+          warn-only: false
+          # No pull-request comment. Writing one needs `pull-requests: write`,
+          # which this workflow deliberately does not have; the job's own
+          # pass/fail is the report.
+          comment-summary-in-pr: never
+          # Deliberately absent: `allow-ghsas` (an advisory allowlist) and
+          # `config-file` (which would move the policy somewhere this test
+          # cannot see it). There are no exceptions today.

@@ -146,8 +146,19 @@ Option B figure, because only the reading edge is left.
   expressions with `new AsyncFunction`, so the panel runs on `'unsafe-inline'
   'unsafe-eval'`. Closing it means publishing and patching Filament's Blade
   views, or upstream nonce support;
-- dependency vulnerability scanning — **outstanding**: needs a decision on the
-  scanner and whether it gates a release;
+- dependency vulnerability scanning — **done**: `composer security`,
+  `npm run audit:production` and `npm run audit:all` audit the locked trees, and
+  `.github/workflows/dependency-security.yml` runs them on pull requests, on
+  pushes to `master`, weekly and on demand, with `actions/dependency-review-action`
+  blocking `moderate` and above over the dependencies a pull request adds in
+  every scope — `runtime`, `development` and `unknown` — with the vulnerability
+  check on, `warn-only` off and no allowlist. Thresholds, acceptance criteria and
+  the current zero-finding state are in `docs/06-testing-and-acceptance.md`,
+  section 6.2; triage of a failure is in `docs/09-runbooks.md`, section 8b. Two
+  things remain open: the workflow has not yet executed on GitHub, and the
+  **release-gate policy is still an owner decision** — whether a finding blocks
+  a release, and at what severity, is provisional until approved
+  (`docs/08-hydromet-input-checklist.md`, section 6);
 - browser, load and accessibility tests — **blocked** on a deployed test
   environment;
 - public source status (`/api/v1/system/status`) — **done**: the endpoint, the

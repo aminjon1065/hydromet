@@ -28,7 +28,9 @@ Its UI is a five-day regional SVG warning map with warning filters, severity col
 
 The checked-out release passed lint and TypeScript validation. Its non-watch test run passed all 824 tests in 26 test files, including unit, integration and SVG snapshot coverage.
 
-Dependency audit still matters before reuse. On 2026-08-31, `npm audit --omit=dev` reported three production-tree advisories: one moderate direct advisory for the locked DOMPurify version and two high transitive advisories involving Nano ID and PostCSS. Fixes were reported as available. The complete development tree reported additional advisories. A fork must update and re-lock dependencies, rerun the full test suite and preserve an audit report before deployment.
+Dependency audit still matters before reuse. On 2026-08-31, `npm audit --omit=dev` **in the upstream `smartmet-alert-client` checkout** reported three production-tree advisories: one moderate direct advisory for the locked DOMPurify version and two high transitive advisories involving Nano ID and PostCSS. Fixes were reported as available. The complete development tree reported additional advisories. A fork must update and re-lock dependencies, rerun the full test suite and preserve an audit report before deployment.
+
+That finding is about the upstream repository and nothing else. It is **not** superseded by this portal's own dependency audits, and the portal's clean results say nothing about it: the two are separate trees with separate lock files, and `smartmet-alert-client` is not a dependency of this portal — it is a reference implementation (`CLAUDE.md`, product decisions). The portal's audits are described in `docs/06-testing-and-acceptance.md`, section 6.2, and cover `composer.lock` and `package-lock.json` in this repository only. Should any upstream code ever be reused here, it arrives with its own dependencies and must be audited on the way in.
 
 The repository's `npm run validate` ends with `npm test`, which starts Vitest in watch mode. CI or release verification should use `npm run test:run` explicitly.
 

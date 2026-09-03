@@ -130,6 +130,23 @@ describe('home page warnings', () => {
         ).toHaveAttribute('href', '/alerts/fixture/fixture-alert-0001');
     });
 
+    /**
+     * Offered whether or not anything is in force: the empty state promises
+     * that withdrawn and expired warnings stay reachable through the history,
+     * and when warnings *are* in force this link is still the only way to the
+     * ones that are not.
+     */
+    it.each([
+        ['with warnings in force', alerts],
+        ['with nothing in force', [] as PublicAlert[]],
+    ])('offers the published warning history %s', (_case, current) => {
+        render(<Home generatedAt="2026-08-31T06:05:00Z" stations={stations} alerts={current} />);
+
+        expect(
+            screen.getByRole('link', { name: translation('alert_history_link') }),
+        ).toHaveAttribute('href', '/alerts');
+    });
+
     it('labels demonstration warnings so they cannot be mistaken for official ones', () => {
         render(<Home generatedAt="2026-08-31T06:05:00Z" stations={stations} alerts={alerts} />);
 

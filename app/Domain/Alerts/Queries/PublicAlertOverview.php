@@ -6,6 +6,7 @@ use App\Domain\Alerts\Enums\AlertSeverity;
 use App\Domain\Alerts\Models\AlertArea;
 use App\Domain\Alerts\Models\AlertMessage;
 use App\Support\Locale\SupportedLocale;
+use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
@@ -44,6 +45,20 @@ use Illuminate\Support\Facades\Log;
  *     onsetAt: string|null,
  *     expiresAt: string,
  *     areas: list<PublicAlertArea>
+ * }
+ * @phpstan-type HistoryRow array{
+ *     identifier: string,
+ *     source: string,
+ *     isMock: bool,
+ *     severity: string,
+ *     messageType: string,
+ *     headline: string,
+ *     sentAt: string,
+ *     effectiveAt: string|null,
+ *     expiresAt: string,
+ *     supersededAt: string|null,
+ *     isActive: bool,
+ *     areas: list<string>
  * }
  * @phpstan-type PublicAlertHistoryEntry array{
  *     identifier: string,
@@ -85,6 +100,15 @@ final class PublicAlertOverview
      * cannot turn one detail request into an unbounded walk.
      */
     private const MAX_CHAIN_MESSAGES = 200;
+
+    /**
+     * Warnings per page of the published history.
+     *
+     * Twenty, not the hundred the station API returns in a batch: this page is
+     * read by a person scrolling cards, not by a client assembling a dataset,
+     * and a hundred cards is a page nobody reaches the end of.
+     */
+    public const HISTORY_PAGE_SIZE = 20;
 
     /**
      * @param  array{west: float, south: float, east: float, north: float}|null  $bbox
@@ -135,6 +159,66 @@ final class PublicAlertOverview
             fn (AlertMessage $message): array => $this->present($message, $locale),
             $messages->all(),
         ));
+    }
+
+    /**
+     * One page of the published history, newest first.
+     *
+     * Everything the portal has published, whether or not it is still in force
+     * — which is the whole point, because the overview drops a warning the
+     * moment it expires or is withdrawn and this is where it remains findable.
+     *
+     * Cursor-paged rather than offset-paged: warnings arrive continuously, and
+     * an offset would silently shift every later page each time one does, so a
+     * reader walking backwards would skip entries. The order is by send time,
+     * broken by id, which is stable and total.
+     *
+     * The rows are deliberately lighter than {@see active()}: no geometry, no
+     * description, no instruction. The list draws no map and shows no body
+     * text, and a page of polygons would be paid for on every request to render
+     * nothing.
+     *
+     * @return CursorPaginator<int, AlertMessage>
+     */
+    public function historyPage(?string $cursor = null, int $perPage = self::HISTORY_PAGE_SIZE): CursorPaginator
+    {
+        return AlertMessage::query()
+            ->publiclyVisible()
+            ->with(['areas' => static fn ($relation) => $relation->orderBy('id')])
+            ->orderByDesc('sent_at')
+            // Last resort, so two messages sent in the same second keep one
+            // order on every request and every driver — which a cursor needs to
+            // be able to resume from at all.
+            ->orderByDesc('id')
+            ->cursorPaginate($perPage, ['*'], 'cursor', $cursor);
+    }
+
+    /**
+     * A history row: what the list renders, and nothing else.
+     *
+     * @return HistoryRow
+     */
+    public function presentHistoryRow(AlertMessage $message, ?SupportedLocale $locale = null): array
+    {
+        $locale ??= SupportedLocale::current();
+
+        return [
+            'identifier' => $message->identifier,
+            'source' => $message->source,
+            'isMock' => $message->isMock(),
+            'severity' => $message->severity->value,
+            'messageType' => $message->message_type->value,
+            'headline' => $message->localizedHeadline($locale),
+            'sentAt' => $message->sent_at->utc()->toIso8601ZuluString(),
+            'effectiveAt' => $message->effective_at?->utc()->toIso8601ZuluString(),
+            'expiresAt' => $message->expires_at->utc()->toIso8601ZuluString(),
+            'supersededAt' => $message->superseded_at?->utc()->toIso8601ZuluString(),
+            'isActive' => $message->isActiveAt(Carbon::now('UTC')),
+            'areas' => array_values(array_map(
+                static fn (AlertArea $area): string => $area->localizedDescription($locale),
+                $message->areas->all(),
+            )),
+        ];
     }
 
     /**

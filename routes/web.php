@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AlertController;
+use App\Http\Controllers\AlertIndexController;
 use App\Http\Controllers\ContentController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\HomeController;
@@ -17,6 +18,13 @@ Route::get('/content/{slug}', ContentController::class)
     ->name('content.show');
 
 Route::get('/language/{locale}', LocaleController::class)->name('language.switch');
+
+/*
+ * Every published warning, newest first. Declared before the detail route so
+ * `/alerts` is the list rather than an attempt to read a warning with no
+ * identifier.
+ */
+Route::get('/alerts', AlertIndexController::class)->name('alerts.index');
 
 /*
  * One warning, addressed by the pair the storage layer keys on: a CAP

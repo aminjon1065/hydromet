@@ -245,12 +245,37 @@ class AlertMessage extends Model
     }
 
     /**
+     * Messages the public may see at all, whether or not they are still in
+     * force.
+     *
+     * This is the whole publication rule, and the only thing that decides it:
+     * a message is public when the sender marked it `Actual` and scoped it
+     * `Public`. Everything else — a test, an exercise, a draft, a system
+     * message, a restricted or private one — is invisible to every public
+     * surface, and reported as missing rather than forbidden, because its
+     * existence is itself not public.
+     *
+     * Deliberately says nothing about being in force. A cancelled or expired
+     * warning is still public: the history list and the detail page both serve
+     * one, and {@see scopeActiveAt()} narrows this further for the surfaces
+     * that ask what is happening now.
+     *
+     * @param  Builder<AlertMessage>  $query
+     * @return Builder<AlertMessage>
+     */
+    public function scopePubliclyVisible(Builder $query): Builder
+    {
+        return $query
+            ->where('status', AlertStatus::Actual)
+            ->where('scope', AlertScope::Public);
+    }
+
+    /**
      * Messages the public portal may show at `$moment`.
      *
-     * The six conditions are the whole publication rule, and each removes a
-     * category the portal must never display:
-     *   - non-`Actual` status is an exercise, test, draft or system message;
-     *   - non-`Public` scope is addressed to named recipients;
+     * {@see scopePubliclyVisible()} decides what may be seen at all; the four
+     * conditions added here decide what is in force, and each removes a
+     * category the portal must not present as current:
      *   - a `Cancel` withdraws a warning and is not itself a warning;
      *   - a superseded message has been replaced by a later one in its chain;
      *   - a message that has not started yet is scheduled, not in force;
@@ -273,8 +298,7 @@ class AlertMessage extends Model
         $at = $moment->format(self::TIMESTAMP_FORMAT);
 
         return $query
-            ->where('status', AlertStatus::Actual)
-            ->where('scope', AlertScope::Public)
+            ->publiclyVisible()
             ->whereIn('message_type', [AlertMessageType::Alert, AlertMessageType::Update])
             ->whereNull('superseded_at')
             ->where('expires_at', '>', $at)

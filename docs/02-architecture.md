@@ -90,17 +90,31 @@ Owns pollutant definitions, approved index schemes, breakpoints, categories and 
 
 Owns canonical CAP-compatible alerts, update/cancel resolution, validity, severity and affected geometries.
 
-Two public surfaces read it, and both go through the same query
-(`PublicAlertOverview`), so they cannot disagree about what is public. The
-overview at `/` lists what is in force and draws the areas. `GET
+Three public surfaces read it, and all three go through the same query
+(`PublicAlertOverview`), so they cannot disagree about what is public. What
+"public" means is one SQL scope, `AlertMessage::scopePubliclyVisible()` —
+`Actual` and `Public`, nothing else — which `scopeActiveAt()` narrows further
+for the surfaces that ask what is happening now.
+
+The overview at `/` lists what is in force and draws the areas. `GET /alerts` is
+the published history: everything the portal has ever published, newest first,
+cursor-paged, including warnings that have expired or been withdrawn. It is
+deliberately unfiltered — a region filter needs an approved region vocabulary, a
+date range needs the feed's refresh semantics, and whether a `Test` message may
+be published is a Hydromet decision, so any filter would mean inventing an
+answer (`docs/05-api-contract.md`, section 2). Its rows carry no geometry and no
+body text: the list draws no map, and a page of polygons would be paid for on
+every request to render nothing. `GET
 /alerts/{source}/{identifier}` is one warning in full, at an address that can be
 shared — the pair, because a CAP identifier is unique within its sender rather
 than globally. That page deliberately serves a warning that is **no longer** in
 force: a link followed an hour later has to say that the warning expired or was
 superseded, and show the rest of the message chain, rather than answer `404` as
 though nothing had ever been issued. A message that is not `Actual` + `Public`
-is reported as missing on both surfaces, so neither can be used to learn what
-the other hides.
+is reported as missing on the detail page, absent from the history and absent
+from the overview, so no surface can be used to learn what another hides — and
+the history list is the one that matters most here, because it is the surface
+that deliberately shows what is no longer current.
 
 ### Integrations
 

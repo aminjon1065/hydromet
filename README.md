@@ -244,9 +244,11 @@ view on `http://localhost:8080/silam`, and the administration panel on
 public overview after fixture or approved production data has been imported.
 Published CMS pages use `http://localhost:8080/content/{slug}`; the corresponding
 JSON endpoint is `http://localhost:8080/api/v1/content/{slug}`.
-A single warning is at `http://localhost:8080/alerts/{source}/{identifier}`,
-linked from each warning on the overview: a CAP identifier is unique within its
-sender, not globally, so the address is the pair.
+`http://localhost:8080/alerts` is the published warning history — everything the
+portal has published, newest first, including expired and withdrawn warnings —
+and a single warning is at `http://localhost:8080/alerts/{source}/{identifier}`,
+linked from each entry: a CAP identifier is unique within its sender, not
+globally, so the address is the pair.
 The versioned read API starts at `http://localhost:8080/api/v1/metadata` and
 `http://localhost:8080/api/v1/stations`.
 

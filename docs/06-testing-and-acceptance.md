@@ -242,6 +242,9 @@ weekly: an advisory appears without the code changing.
 | The whole `Alert → Update → Update → Cancel` chain is returned from any of its links | Automated | `tests/Feature/Alerts/AlertMessageChainTest.php` |
 | A warning from a non-fixture source is addressable, and the same identifier in two sources resolves separately | Automated | `tests/Feature/Api/AlertDetailContractTest.php` |
 | A warning is readable on the public web at its own shareable address, in all three languages | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
+| The published history lists expired and withdrawn warnings, newest first, and distinguishes the three states | Automated | `tests/Feature/Alerts/PublicAlertHistoryPageTest.php`, `tests/frontend/alert-index.test.tsx` |
+| A non-public message never appears in the history — the surface that deliberately shows what is no longer current | Automated | `tests/Feature/Alerts/PublicAlertHistoryPageTest.php` |
+| A long history is cursor-paged in both directions, and a malformed cursor does not break the page | Automated | `tests/Feature/Alerts/PublicAlertHistoryPageTest.php` |
 | An expired or superseded warning stays readable and is marked as no longer in force, rather than answering `404` | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php`, `tests/frontend/alert-show.test.tsx` |
 | The whole message chain is reachable from the public page, from any of its links | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |
 | A non-public message is reported as missing identically on the web page and the API | Automated | `tests/Feature/Alerts/PublicAlertPageTest.php` |

@@ -151,6 +151,28 @@ export interface PublicAlertDetail extends PublicAlert {
 }
 
 /**
+ * One row of the published warning history.
+ *
+ * Lighter than {@link PublicAlert} on purpose: the list draws no map and shows
+ * no body text, so it carries area names rather than geometry and no
+ * description or instruction at all.
+ */
+export interface PublicAlertHistoryRow {
+    identifier: string;
+    source: string;
+    isMock: boolean;
+    severity: AlertSeverity;
+    messageType: string;
+    headline: string;
+    sentAt: string;
+    effectiveAt: string | null;
+    expiresAt: string;
+    supersededAt: string | null;
+    isActive: boolean;
+    areas: string[];
+}
+
+/**
  * A link in the supersession chain — `Alert → Update → Update → Cancel`.
  *
  * Deliberately small: the history is a way to reach the other messages, not a

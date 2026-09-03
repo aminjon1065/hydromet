@@ -102,10 +102,14 @@ Forking `smartmet-alert-client` instead of the recommended Leaflet alert layer a
   adapter class once Hydromet names the source type;
 - Update/Cancel handling — **done**, including message history and the
   supersession rules behind `ALERT-02` and `ALERT-03`. The public portal now
-  reaches that history too: `/alerts/{source}/{identifier}` serves one warning
-  at a shareable address, keeps an expired or superseded message readable with
-  the reason it is no longer in force, and lists the whole chain. What is still
-  demonstrated on a synthetic feed rather than accepted stays unchanged;
+  reaches that history too: `/alerts` lists every published warning, newest
+  first and cursor-paged, including expired and withdrawn ones, and
+  `/alerts/{source}/{identifier}` serves one warning at a shareable address,
+  keeps an expired or superseded message readable with the reason it is no
+  longer in force, and lists the whole chain. The list is unfiltered on purpose
+  — region, severity and date filters all depend on decisions nobody has made.
+  What is still demonstrated on a synthetic feed rather than accepted stays
+  unchanged;
 - SILAM iframe — **done**;
 - approved AQI configuration and advice — **blocked**
   (`docs/08-hydromet-input-checklist.md`, section 4). Nothing is published.

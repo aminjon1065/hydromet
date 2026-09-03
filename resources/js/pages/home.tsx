@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, Clock3, Database, MapPin, Radio, Wind } from 'lucide-react';
+import { AlertTriangle, Clock3, Database, History, MapPin, Radio, Wind } from 'lucide-react';
 
 import { AlertLegend } from '@/components/alert-legend';
 import { AlertList } from '@/components/alert-list';
@@ -126,6 +126,20 @@ export default function Home({ generatedAt, stations, alerts }: HomeProps) {
                         </CardHeader>
                     </Card>
                 )}
+
+                {/*
+                 * Offered whether or not anything is in force. The empty state
+                 * says withdrawn and expired warnings remain available through
+                 * the history, and this is the link that makes that true; when
+                 * warnings are in force, it is still the only way to reach the
+                 * ones that are not.
+                 */}
+                <Button asChild variant="outline">
+                    <Link href="/alerts">
+                        <History aria-hidden />
+                        {t('alert_history_link')}
+                    </Link>
+                </Button>
             </section>
 
             {stations.length ? (
